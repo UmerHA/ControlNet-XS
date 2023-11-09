@@ -170,6 +170,7 @@ def get_sdxl_sample(
         control_scale=1.,
         shape=[4, 64, 64],
         n_prompt='longbody, lowres, bad anatomy, extra digit, fewer digits, cropped, worst quality, low quality',
+        return_latents=False,
 ):
     ds = {
         'hint': guidance,
@@ -217,7 +218,7 @@ def get_sdxl_sample(
             c[k], uc[k] = map(lambda y: y[k].to('cuda'), (c, uc))
 
     with model.ema_scope("Plotting"):
-        samples = model.sample(
+        samples, latents = model.sample(
             c, shape=shape, uc=uc, batch_size=num_samples, **sampling_kwargs
         )
 
@@ -232,8 +233,10 @@ def get_sdxl_sample(
     #  reset scales
     model.model.scale_list = model.model.scale_list * 0. + 1.
 
-    return x_samples, control
-
+    if return_latents:
+        return x_samples, control, latents
+    else:
+        return x_samples, control
 
 def get_sd_sample(
         guidance,

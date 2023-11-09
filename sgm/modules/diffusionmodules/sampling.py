@@ -114,6 +114,8 @@ class EDMSampler(SingleStepDiffusionSampler):
             x, cond, uc, num_steps
         )
 
+        latents = []
+
         for i in self.get_sigma_gen(num_sigmas):
             gamma = (
                 min(self.s_churn / (num_sigmas - 1), 2**0.5 - 1)
@@ -129,8 +131,9 @@ class EDMSampler(SingleStepDiffusionSampler):
                 uc,
                 gamma,
             )
+            latents.append(x)
 
-        return x
+        return x, latents
 
 
 class AncestralSampler(SingleStepDiffusionSampler):

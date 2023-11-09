@@ -31,6 +31,7 @@ from ...util import default, exists
 from torchvision import transforms as tt
 import numpy as np
 
+from ...umer_debug_logger import udl
 
 class TwoStreamControlNet(nn.Module):
     def __init__(
@@ -295,12 +296,23 @@ class TwoStreamControlNet(nn.Module):
             **kwargs,
         )
 
+    def unwrap_unnecessary_TimeStepEmbedSequentials(self):
+        # By Umer
+        # the connections don't need time or context info, so don't need to be in a TimestepEmbedSequential
+        cons = ('enc_zero_convs_in','enc_zero_convs_out','dec_zero_convs_in','dec_zero_convs_out')
+        for con in cons:
+            for m in getattr(self,con): assert len(m)==1
+        self.enc_zero_convs_in = nn.ModuleList([m[0] for m in self.enc_zero_convs_in])
+        self.enc_zero_convs_out = nn.ModuleList([m[0] for m in self.enc_zero_convs_out])
+        self.dec_zero_convs_in = nn.ModuleList([m[0] for m in self.dec_zero_convs_in])
+        self.dec_zero_convs_out = nn.ModuleList([m[0] for m in self.dec_zero_convs_out])
+        self.input_hint_block = nn.Sequential(*[m for m in self.input_hint_block])
+
     def forward_(
         self, x, hint, timesteps, context,
         base_model=None, y=None, precomputed_hint=False,
         no_control=False, compute_hint=False, **kwargs
     ):
-
         if base_model is None:
             base_model = self.diffusion_model
 
@@ -315,20 +327,35 @@ class TwoStreamControlNet(nn.Module):
             hint_processed = torch.stack(hints).to(x.device)
             hint = hint_processed.to(memory_format=torch.contiguous_format).float()
 
+        udl.log_if('timestep',timesteps,'TIME')
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+        udl.log_if('time_emb',t_emb,'TIME')
         if self.learn_embedding:
+            udl.log_if('time_proj_ctrl',self.control_model.time_embed(t_emb),'TIME')
+            udl.log_if('time_proj_ctrl_scaled',self.control_model.time_embed(t_emb) * self.control_scale ** 0.3,'TIME')
+            udl.log_if('time_proj_base',base_model.time_embed(t_emb),'TIME')
+            udl.log_if('time_proj_base_scaled',base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3),'TIME')
             emb = self.control_model.time_embed(t_emb) * self.control_scale ** 0.3 + base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3)
         else:
             emb = base_model.time_embed(t_emb)
+        udl.log_if('time_proj',emb,'TIME')
+
 
         if y is not None:
             assert y.shape[0] == x.shape[0]
+            udl.log_if('text_embeds',y[:,:1280],'TIME')
+            udl.log_if('add_input',torch.tensor([-1.,-1., -1.,-1.,-1, -1., -1., -1., -1., -1., -1., -1.]),'TIME')
+            udl.log_if('add_emb',y[:,1280:],'TIME')
+            udl.log_if('add_proj',base_model.label_emb(y),'TIME')
             emb = emb + base_model.label_emb(y)
+            udl.log_if('final_temb',emb,'TIME')
 
+        udl.stop_if('TIME', 'Time to analyze time!')
+        
         if precomputed_hint:
             guided_hint = hint
         else:
-            guided_hint = self.input_hint_block(hint, emb, context)
+            guided_hint = self.input_hint_block(hint)#, emb, context)
 
         h_ctr = h_base = x
         hs_base = []
@@ -341,38 +368,68 @@ class TwoStreamControlNet(nn.Module):
 
         ###################### Cross Control        ######################
 
+        udl.log_if('prep.x',            x,             'SUBBLOCK')
+        udl.log_if('prep.emb',          emb,           'SUBBLOCK')
+        udl.log_if('prep.context',      context,       'SUBBLOCK')
+        udl.log_if('prep.raw hint',     hint,          'SUBBLOCK')
+        udl.log_if('prep.guided_hint',  guided_hint,   'SUBBLOCK')
+
+        RUN_ONCE = ('SUBBLOCK', 'SUBBLOCK-MINUS-1')
+
         if self.two_stream_mode == 'cross':
             # input blocks (encoder)
+            debug_input_conv_done = False
             for module_base, module_ctr in zip(base_model.input_blocks, self.control_model.input_blocks):
+                udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
                 h_base = module_base(h_base, emb, context)
+                udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
+                udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
                 h_ctr = module_ctr(h_ctr, emb, context)
+                udl.log_if('enc.h_ctr', h_ctr, 'SUBBLOCK')
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     # h_ctr = torch.cat([h_ctr, guided_hint], dim=1)
                     guided_hint = None
-
+                    udl.log_if('enc.h_ctr', h_ctr, 'SUBBLOCK')
                 if self.guiding in ('encoder_double', 'full'):
                     if self.infusion2base == 'add':
-                        h_base = h_base + next(it_enc_convs_out)(h_ctr, emb) * next(scales)
+                        add_to_base = next(it_enc_convs_out)(h_ctr)
+                        scale = next(scales)
+                        h_base = h_base + add_to_base * scale
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
+                udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
 
                 hs_base.append(h_base)
                 hs_ctr.append(h_ctr)
 
+                if debug_input_conv_done: print()
+                if not debug_input_conv_done:
+                    debug_input_conv_done = True
+                    udl.print_if('------ enc ------', conditions=RUN_ONCE)
+
                 if self.infusion2control == 'add':
                     h_ctr = h_ctr + next(it_enc_convs_in)(h_base, emb)
                 elif self.infusion2control == 'cat':
-                    h_ctr = th.cat([h_ctr, next(it_enc_convs_in)(h_base, emb)], dim=1)
+                    cat_to_ctrl = next(it_enc_convs_in)(h_base)
+                    h_ctr = th.cat([h_ctr, cat_to_ctrl], dim=1)
+                
+                udl.log_if('enc.h_ctrl', h_ctr, condition='SUBBLOCK')
 
             # mid blocks (bottleneck)
+            udl.print_if('------ mid ------', conditions=RUN_ONCE)
+            udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
             h_base = base_model.middle_block(h_base, emb, context)
+            udl.log_if('mid.h_base', h_base, 'SUBBLOCK')
+            udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
+            udl.log_if('mid.h_ctr', h_ctr, 'SUBBLOCK')
 
             if self.infusion2base == 'add':
                 h_base = h_base + self.middle_block_out(h_ctr, emb) * next(scales)
             elif self.infusion2base == 'cat':
                 raise NotImplementedError()
+            udl.log_if('mid.h_base', h_base, condition='SUBBLOCK')
 
             if self.guiding == 'full':
                 if self.infusion2control == 'add':
@@ -381,6 +438,7 @@ class TwoStreamControlNet(nn.Module):
                     h_ctr = th.cat([h_ctr, self.middle_block_in(h_base, emb)], dim=1)
 
             # output blocks (decoder)
+            udl.print_if('------ dec ------', conditions=RUN_ONCE)
             for module_base, module_ctr in zip(
                     base_model.output_blocks,
                     self.control_model.output_blocks if hasattr(
@@ -389,12 +447,17 @@ class TwoStreamControlNet(nn.Module):
 
                 if self.guiding != 'full':
                     if self.infusion2base == 'add':
-                        h_base = h_base + next(it_dec_convs_out)(hs_ctr.pop(), emb) * next(scales)
+                        h_base = h_base + next(it_dec_convs_out)(hs_ctr.pop()) * next(scales)
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
-
+                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
+    
                 h_base = th.cat([h_base, hs_base.pop()], dim=1)
+                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
+                udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
                 h_base = module_base(h_base, emb, context)
+                print()
+                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 if self.guiding == 'full':
                     h_ctr = th.cat([h_ctr, hs_ctr.pop()], dim=1)
                     h_ctr = module_ctr(h_ctr, emb, context)
@@ -410,6 +473,10 @@ class TwoStreamControlNet(nn.Module):
                             h_ctr = th.cat([h_ctr, next(it_dec_convs_in)(h_base, emb)], dim=1)
         else:
             raise NotImplementedError()
+        
+        udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
+        udl.stop_if('SUBBLOCK-MINUS-1', 'Alright captain. Look at all these tensors we caught. Time to do some real analysis.')
+
         h_base = h_base.type(x.dtype)
         return base_model.out(h_base)
 
@@ -1020,9 +1087,10 @@ class ResBlock(TimestepBlock):
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        return checkpoint(
-            self._forward, (x, emb), self.parameters(), self.use_checkpoint
-        )
+        #return checkpoint(
+        #    self._forward, (x, emb), self.parameters(), self.use_checkpoint
+        #)
+        return self._forward(x, emb)
 
     def _forward(self, x, emb):
         if self.updown:
@@ -1033,6 +1101,7 @@ class ResBlock(TimestepBlock):
             h = in_conv(h)
         else:
             h = self.in_layers(x)
+        udl.log_if('conv1', h, 'SUBBLOCK-MINUS-1')
 
         if self.skip_t_emb:
             emb_out = th.zeros_like(h)
@@ -1049,8 +1118,16 @@ class ResBlock(TimestepBlock):
             if self.exchange_temb_dims:
                 emb_out = rearrange(emb_out, "b t c ... -> b c t ...")
             h = h + emb_out
+            udl.log_if('add time_emb_proj', h, 'SUBBLOCK-MINUS-1')
             h = self.out_layers(h)
-        return self.skip_connection(x) + h
+            udl.log_if('conv2', h, 'SUBBLOCK-MINUS-1')
+        result = self.skip_connection(x) + h
+        udl.log_if('add conv_shortcut', result, 'SUBBLOCK-MINUS-1')
+
+        return result
+
+
+
 
 
 def Normalize(in_channels):
@@ -1144,19 +1221,30 @@ class SpatialTransformer(nn.Module):
             context = [context]
         b, c, h, w = x.shape
         x_in = x
+        # # # 1 - In
         x = self.norm(x)
         if not self.use_linear:
             x = self.proj_in(x)
         x = rearrange(x, "b c h w -> b (h w) c").contiguous()
         if self.use_linear:
             x = self.proj_in(x)
+        udl.log_if('proj_in', x, 'SUBBLOCK-MINUS-1')
+
+        # # # 2 - Tranformer blocks
         for i, block in enumerate(self.transformer_blocks):
             if i > 0 and len(context) == 1:
                 i = 0  # use same context for each block
             x = block(x, context=context[i])
+
+        # # # 3 - Out
         if self.use_linear:
             x = self.proj_out(x)
         x = rearrange(x, "b (h w) c -> b c h w", h=h, w=w).contiguous()
         if not self.use_linear:
             x = self.proj_out(x)
-        return x + x_in
+        
+        result = x + x_in
+        udl.log_if('proj_out', result, 'SUBBLOCK-MINUS-1')
+
+        return result
+    

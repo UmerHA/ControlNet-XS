@@ -8,6 +8,8 @@ from einops import rearrange, repeat
 from packaging import version
 from torch import nn
 
+from ..umer_debug_logger import udl
+
 if version.parse(torch.__version__) >= version.parse("2.0.0"):
     SDP_IS_AVAILABLE = True
     from torch.backends.cuda import SDPBackend, sdp_kernel
@@ -289,10 +291,10 @@ class MemoryEfficientCrossAttention(nn.Module):
         self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0, **kwargs
     ):
         super().__init__()
-        print(
-            f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
-            f"{heads} heads with a dimension of {dim_head}."
-        )
+        #print(
+        #    f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
+        #    f"{heads} heads with a dimension of {dim_head}."
+        #)
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
 
@@ -436,8 +438,7 @@ class BasicTransformerBlock(nn.Module):
         self.norm2 = nn.LayerNorm(dim)
         self.norm3 = nn.LayerNorm(dim)
         self.checkpoint = checkpoint
-        if self.checkpoint:
-            print(f"{self.__class__.__name__} is using checkpointing")
+        #if self.checkpoint:    print(f"{self.__class__.__name__} is using checkpointing")
 
     def forward(
         self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0
@@ -456,14 +457,15 @@ class BasicTransformerBlock(nn.Module):
             )
 
         # return mixed_checkpoint(self._forward, kwargs, self.parameters(), self.checkpoint)
-        return checkpoint(
-            self._forward, (x, context), self.parameters(), self.checkpoint
-        )
+        #return checkpoint(
+        #    self._forward, (x, context), self.parameters(), self.checkpoint
+        #)
+        return self._forward(x,context)
 
     def _forward(
         self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0
     ):
-        x = (
+        attn1_output = (
             self.attn1(
                 self.norm1(x),
                 context=context if self.disable_self_attn else None,
@@ -472,15 +474,28 @@ class BasicTransformerBlock(nn.Module):
                 if not self.disable_self_attn
                 else 0,
             )
-            + x
         )
-        x = (
+        x = attn1_output + x
+        udl.log_if('attn1', attn1_output, 'SUBBLOCK-MINUS-1')
+        udl.log_if('add attn1', x, 'SUBBLOCK-MINUS-1')
+
+        norm2_x = self.norm2(x)
+        udl.log_if('norm2', norm2_x, 'SUBBLOCK-MINUS-1')
+        udl.log_if('context', context, 'SUBBLOCK-MINUS-1')
+        attn2_output = (
             self.attn2(
-                self.norm2(x), context=context, additional_tokens=additional_tokens
+                norm2_x, context=context, additional_tokens=additional_tokens
             )
-            + x
         )
-        x = self.ff(self.norm3(x)) + x
+        x = attn2_output + x
+        udl.log_if('attn2', attn2_output, 'SUBBLOCK-MINUS-1')
+        udl.log_if('add attn2', x, 'SUBBLOCK-MINUS-1')
+
+        ff_output = self.ff(self.norm3(x))
+        x = ff_output + x
+        udl.log_if('ff', ff_output, 'SUBBLOCK-MINUS-1')
+        udl.log_if('add ff', x, 'SUBBLOCK-MINUS-1')
+
         return x
 
 
@@ -615,19 +630,29 @@ class SpatialTransformer(nn.Module):
             context = [context]
         b, c, h, w = x.shape
         x_in = x
+        # # # 1 - In
         x = self.norm(x)
         if not self.use_linear:
             x = self.proj_in(x)
         x = rearrange(x, "b c h w -> b (h w) c").contiguous()
         if self.use_linear:
             x = self.proj_in(x)
+        udl.log_if('proj_in', x, 'SUBBLOCK-MINUS-1')
+
+        # # # 2 - Tranformer blocks
         for i, block in enumerate(self.transformer_blocks):
             if i > 0 and len(context) == 1:
                 i = 0  # use same context for each block
             x = block(x, context=context[i])
+
+        # # # 3 - Out
         if self.use_linear:
             x = self.proj_out(x)
         x = rearrange(x, "b (h w) c -> b c h w", h=h, w=w).contiguous()
         if not self.use_linear:
             x = self.proj_out(x)
-        return x + x_in
+        
+        result = x + x_in
+        udl.log_if('proj_out', result, 'SUBBLOCK-MINUS-1')
+
+        return result

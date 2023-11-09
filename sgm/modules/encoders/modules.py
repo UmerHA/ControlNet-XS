@@ -146,7 +146,7 @@ class GeneralConditioner(nn.Module):
             ), f"encoder outputs must be tensors or a sequence, but got {type(emb_out)}"
             if not isinstance(emb_out, (list, tuple)):
                 emb_out = [emb_out]
-            for emb in emb_out:
+            for bla_i, emb in enumerate(emb_out):
                 out_key = self.OUTPUT_DIM2KEYS[emb.dim()]
                 if embedder.ucg_rate > 0.0 and embedder.legacy_ucg_val is None:
                     emb = (
@@ -175,6 +175,10 @@ class GeneralConditioner(nn.Module):
     def get_unconditional_conditioning(
         self, batch_c, batch_uc=None, force_uc_zero_embeddings=None
     ):
+        print('crop_coords_top_left =',batch_c['crop_coords_top_left'])
+        print('original_size_as_tuple =',batch_c['original_size_as_tuple'])
+        print('target_size_as_tuple =',batch_c['target_size_as_tuple'])
+
         if force_uc_zero_embeddings is None:
             force_uc_zero_embeddings = []
         ucg_rates = list()

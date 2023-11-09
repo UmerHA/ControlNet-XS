@@ -241,12 +241,15 @@ class DiffusionEngine(pl.LightningModule):
         **kwargs,
     ):
         randn = torch.randn(batch_size, *shape).to(self.device)
-
+ 
         denoiser = lambda input, sigma, c: self.denoiser(
             self.model, input, sigma, c, **kwargs
         )
-        samples = self.sampler(denoiser, randn, cond, uc=uc)
-        return samples
+        samples, latents = self.sampler(denoiser, randn, cond, uc=uc)
+
+        latents = [randn] + latents # Debug Umer
+
+        return samples, latents
 
     @torch.no_grad()
     def log_conditionings(self, batch: Dict, n: int) -> Dict:

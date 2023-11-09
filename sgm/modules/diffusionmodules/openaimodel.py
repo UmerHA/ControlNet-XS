@@ -21,6 +21,7 @@ from ...modules.diffusionmodules.util import (
 )
 from ...util import default, exists
 
+from ...umer_debug_logger import udl
 
 # dummy replace
 def convert_module_to_f16(x):
@@ -64,7 +65,7 @@ class AttentionPool2d(nn.Module):
         return x[:, :, 0]
 
 
-class TimestepBlock(nn.Module):
+class TimestepBlock(nn.Module): 
     """
     Any module where forward() takes timestep embeddings as a second argument.
     """
@@ -93,6 +94,9 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
         time_context_cat=None,
         use_crossframe_attention_in_spatial_layers=False,
     ):
+        def cls_name(x): return str(type(x)).split('.')[-1].replace("'>",'')
+        content = ' '.join(cls_name(m) for m in self)
+        udl.print_if(f'TimestepEmbedSequential.forward with content {content}', 'SUBBLOCK-MINUS-1')
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
@@ -102,8 +106,8 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
                 x = layer(x, context)
             else:
                 x = layer(x)
+                udl.log_if('conv',x,'SUBBLOCK-MINUS-1')
         return x
-
 
 class Upsample(nn.Module):
     """
@@ -316,10 +320,11 @@ class ResBlock(TimestepBlock):
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        return checkpoint(
-            self._forward, (x, emb), self.parameters(), self.use_checkpoint
-        )
-
+        #return checkpoint(
+        #    self._forward, (x, emb), self.parameters(), self.use_checkpoint
+        #)
+        return self._forward(x, emb)
+        
     def _forward(self, x, emb):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
@@ -329,13 +334,15 @@ class ResBlock(TimestepBlock):
             h = in_conv(h)
         else:
             h = self.in_layers(x)
-
+        udl.log_if('conv1', h, 'SUBBLOCK-MINUS-1')
+        
         if self.skip_t_emb:
             emb_out = th.zeros_like(h)
         else:
             emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
+
         if self.use_scale_shift_norm:
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = th.chunk(emb_out, 2, dim=1)
@@ -345,8 +352,13 @@ class ResBlock(TimestepBlock):
             if self.exchange_temb_dims:
                 emb_out = rearrange(emb_out, "b t c ... -> b c t ...")
             h = h + emb_out
+            udl.log_if('add time_emb_proj', h, 'SUBBLOCK-MINUS-1')
             h = self.out_layers(h)
-        return self.skip_connection(x) + h
+            udl.log_if('conv2', h, 'SUBBLOCK-MINUS-1')
+        result = self.skip_connection(x) + h
+        udl.log_if('add conv_shortcut', result, 'SUBBLOCK-MINUS-1')
+         
+        return result
 
 
 class AttentionBlock(nn.Module):
@@ -387,10 +399,11 @@ class AttentionBlock(nn.Module):
 
     def forward(self, x, **kwargs):
         # TODO add crossframe attention and use mixed checkpoint
-        return checkpoint(
-            self._forward, (x,), self.parameters(), True
-        )  # TODO: check checkpoint usage, is True # TODO: fix the .half call!!!
+        #return checkpoint(
+        #    self._forward, (x,), self.parameters(), True
+        #)  # TODO: check checkpoint usage, is True # TODO: fix the .half call!!!
         # return pt_checkpoint(self._forward, x)  # pytorch
+        return self._forward(x)
 
     def _forward(self, x):
         b, c, *spatial = x.shape
