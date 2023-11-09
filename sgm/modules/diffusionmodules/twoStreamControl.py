@@ -271,6 +271,23 @@ class TwoStreamControlNet(nn.Module):
         scale_list = [1.] * len(self.enc_zero_convs_out) + [1.] + [1.] * len(self.dec_zero_convs_out)
         self.register_buffer('scale_list', torch.tensor(scale_list))
 
+    def toggle_control(self, to):
+        if not hasattr(self, 'do_control'): self.do_control = True
+        if not hasattr(self, 'scale_back_up'): self.back_up = None
+        if self.do_control == to:
+            print(f'Model already set to control mode == {to}')
+            return
+        if not to:
+            self.scale_back_up = self.scale_list[0].clone()
+            self.scale_list = self.scale_list * 0.
+            self.do_control = False
+        else:
+            self.scale_list = self.scale_list * 0. + self.scale_back_up 
+            self.scale_back_up = None
+            self.do_control = True
+        assert self.do_control == to
+        print(f'Model set to control mode == {self.do_control}')
+
     def make_zero_conv(self, in_channels, out_channels=None):
         self.in_channels = in_channels
         self.out_channels = out_channels or in_channels
