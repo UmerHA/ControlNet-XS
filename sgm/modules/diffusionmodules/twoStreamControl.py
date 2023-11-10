@@ -420,7 +420,7 @@ class TwoStreamControlNet(nn.Module):
                 hs_base.append(h_base)
                 hs_ctr.append(h_ctr)
 
-                if debug_input_conv_done: print()
+                if debug_input_conv_done: udl.print_if('', conditions=RUN_ONCE)
                 if not debug_input_conv_done:
                     debug_input_conv_done = True
                     udl.print_if('------ enc ------', conditions=RUN_ONCE)
@@ -473,7 +473,7 @@ class TwoStreamControlNet(nn.Module):
                 udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
                 h_base = module_base(h_base, emb, context)
-                print()
+                udl.print_if('', conditions=RUN_ONCE)
                 udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 if self.guiding == 'full':
                     h_ctr = th.cat([h_ctr, hs_ctr.pop()], dim=1)
@@ -1142,9 +1142,6 @@ class ResBlock(TimestepBlock):
         udl.log_if('add conv_shortcut', result, 'SUBBLOCK-MINUS-1')
 
         return result
-
-
-
 
 
 def Normalize(in_channels):

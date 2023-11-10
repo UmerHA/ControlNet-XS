@@ -13,28 +13,28 @@ from datetime import datetime
 class UmerDebugLogger:
     def __init__(self, log_dir='logs', condition=None):
         self.log_dir, self.condition, self.tensor_counter = log_dir, condition, 0
-
         os.makedirs(log_dir, exist_ok=True)
-        # Set up CSV logging
-        self.file = os.path.join(log_dir, 'custom_log.csv')
+        self.file = 'udl.csv'
         self.fields = ['timestamp', 'cls', 'fn', 'shape', 'msg', 'condition', 'tensor_file']
-        # Write the header only once if the file does not exist
-        if not os.path.isfile(self.file):
-            with open(self.file, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=self.fields)
-                writer.writeheader()
-        # Configure the logger to not propagate messages to the root logger
-        self.logger = logging.getLogger(__name__)
-        self.logger.propagate = False
-
+        self.create_file()
         self.warned_of_no_condition = False
 
+    def create_file(self):
+        file = os.path.join(self.log_dir, self.file)     
+        if not os.path.isfile(file):
+            with open(file, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=self.fields)
+                writer.writeheader()
+
+    def set_dir(self, log_dir, clear=False):
+        self.log_dir = log_dir
+        if clear: self.clear_logs()
+        self.create_file()
+
     def clear_logs(self):
-        shutil.rmtree(self.log_dir)
+        shutil.rmtree(self.log_dir, ignore_errors=True)
         os.makedirs(self.log_dir, exist_ok=True)
-        with open(self.file, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=self.fields)
-            writer.writeheader()
+        self.create_file()
 
     def set_condition(self, condition): self.condition = condition
 
