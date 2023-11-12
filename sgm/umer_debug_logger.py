@@ -11,20 +11,26 @@ from types import SimpleNamespace
 from datetime import datetime
 
 class UmerDebugLogger:
+
+    _FILE = 'udl.csv'
+
     def __init__(self, log_dir='logs', condition=None):
         self.log_dir, self.condition, self.tensor_counter = log_dir, condition, 0
         os.makedirs(log_dir, exist_ok=True)
-        self.file = 'udl.csv'
         self.fields = ['timestamp', 'cls', 'fn', 'shape', 'msg', 'condition', 'tensor_file']
         self.create_file()
         self.warned_of_no_condition = False
 
+    @property
+    def full_file_path(self): return os.path.join(self.log_dir, self._FILE) 
+
     def create_file(self):
-        file = os.path.join(self.log_dir, self.file)     
+        file = self.full_file_path    
         if not os.path.isfile(file):
             with open(file, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=self.fields)
                 writer.writeheader()
+
 
     def set_dir(self, log_dir, clear=False):
         self.log_dir = log_dir
@@ -70,7 +76,7 @@ class UmerDebugLogger:
                 'tensor_file': tensor_filename
             }
 
-            with open(self.file, 'a', newline='') as f:
+            with open(self.full_file_path, 'a', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=self.fields)
                 writer.writerow(log_info)
 
@@ -78,7 +84,7 @@ class UmerDebugLogger:
     
     def print_if(self, msg, conditions, end='\n'):
         self.maybe_warn_of_no_condition()
-        if not isinstance(conditions, list): conditions = [conditions]
+        if not isinstance(conditions, (tuple, list)): conditions = [conditions]
         if any(self.condition==c for c in conditions): print(msg, end=end)
 
     def stop_if(self, condition, funny_msg):
@@ -93,11 +99,25 @@ class UmerDebugLogger:
 
     def get_log_objects(self):
         log_objects = []
-        with open(self.file, newline='') as f:
+        file = self.full_file_path  
+        with open(file, newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 row['tensor'] = torch.load(os.path.join(self.log_dir, row['tensor_file']))
                 row['head'] = row['tensor'].flatten()[:10]
+                del row['tensor_file']
+                log_objects.append(SimpleNamespace(**row))
+        return log_objects
+
+    @classmethod
+    def load_log_objects_from_dir(self, log_dir):
+        file = os.path.join(log_dir, self._FILE)   
+        log_objects = []
+        with open(file, newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                row['t'] = torch.load(os.path.join(log_dir, row['tensor_file']))
+                row['head'] = row['t'].flatten()[:10]
                 del row['tensor_file']
                 log_objects.append(SimpleNamespace(**row))
         return log_objects

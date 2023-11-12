@@ -336,6 +336,8 @@ class TwoStreamControlNet(nn.Module):
         if no_control or self.no_control:
             return base_model(x=x, timesteps=timesteps, context=context, y=y, **kwargs)
 
+        print('control scale: ', self.scale_list)
+
         if compute_hint:
             hints = []
             for inp in hint:
@@ -386,9 +388,9 @@ class TwoStreamControlNet(nn.Module):
         ###################### Cross Control        ######################
 
         udl.log_if('prep.x',            x,             'SUBBLOCK')
-        udl.log_if('prep.emb',          emb,           'SUBBLOCK')
+        udl.log_if('prep.temb',         emb,           'SUBBLOCK')
         udl.log_if('prep.context',      context,       'SUBBLOCK')
-        udl.log_if('prep.raw hint',     hint,          'SUBBLOCK')
+        udl.log_if('prep.raw_hint',     hint,          'SUBBLOCK')
         udl.log_if('prep.guided_hint',  guided_hint,   'SUBBLOCK')
 
         RUN_ONCE = ('SUBBLOCK', 'SUBBLOCK-MINUS-1')
@@ -402,16 +404,17 @@ class TwoStreamControlNet(nn.Module):
                 udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
                 udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
                 h_ctr = module_ctr(h_ctr, emb, context)
-                udl.log_if('enc.h_ctr', h_ctr, 'SUBBLOCK')
+                udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     # h_ctr = torch.cat([h_ctr, guided_hint], dim=1)
                     guided_hint = None
-                    udl.log_if('enc.h_ctr', h_ctr, 'SUBBLOCK')
+                    udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
                 if self.guiding in ('encoder_double', 'full'):
                     if self.infusion2base == 'add':
                         add_to_base = next(it_enc_convs_out)(h_ctr)
                         scale = next(scales)
+                        udl.print_if(f'scale = {scale}', conditions=RUN_ONCE)
                         h_base = h_base + add_to_base * scale
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
@@ -440,7 +443,7 @@ class TwoStreamControlNet(nn.Module):
             udl.log_if('mid.h_base', h_base, 'SUBBLOCK')
             udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
-            udl.log_if('mid.h_ctr', h_ctr, 'SUBBLOCK')
+            udl.log_if('mid.h_ctrl', h_ctr, 'SUBBLOCK')
 
             if self.infusion2base == 'add':
                 h_base = h_base + self.middle_block_out(h_ctr, emb) * next(scales)
@@ -491,11 +494,16 @@ class TwoStreamControlNet(nn.Module):
         else:
             raise NotImplementedError()
         
+        h_base = h_base.type(x.dtype)
+
+        result = base_model.out(h_base)
+        udl.log_if('conv_out.h_base', result, condition='SUBBLOCK')
+        udl.print_if('',conditions=RUN_ONCE)
+
         udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
         udl.stop_if('SUBBLOCK-MINUS-1', 'Alright captain. Look at all these tensors we caught. Time to do some real analysis.')
 
-        h_base = h_base.type(x.dtype)
-        return base_model.out(h_base)
+        return result
 
 
 class ControlledXLUNetModel(nn.Module):
@@ -1183,10 +1191,10 @@ class SpatialTransformer(nn.Module):
             context_dim = [context_dim]
         if exists(context_dim) and isinstance(context_dim, list):
             if depth != len(context_dim):
-                print(
-                    f"WARNING: {self.__class__.__name__}: Found context dims {context_dim} of depth {len(context_dim)}, "
-                    f"which does not match the specified 'depth' of {depth}. Setting context_dim to {depth * [context_dim[0]]} now."
-                )
+                #print(
+                #    f"WARNING: {self.__class__.__name__}: Found context dims {context_dim} of depth {len(context_dim)}, "
+                #    f"which does not match the specified 'depth' of {depth}. Setting context_dim to {depth * [context_dim[0]]} now."
+                #)
                 # depth does not match context dims.
                 assert all(
                     map(lambda x: x == context_dim[0], context_dim)
