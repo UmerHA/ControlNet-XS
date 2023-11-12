@@ -19,6 +19,8 @@ except:
 
 from ...modules.attention import LinearAttention, MemoryEfficientCrossAttention
 
+from ...umer_debug_logger import udl
+
 
 def get_timestep_embedding(timesteps, embedding_dim):
     """
@@ -65,6 +67,7 @@ class Upsample(nn.Module):
         x = torch.nn.functional.interpolate(x, scale_factor=2.0, mode="nearest")
         if self.with_conv:
             x = self.conv(x)
+        udl.log_if('conv',x, 'SUBBLOCK-MINUS-1')
         return x
 
 
@@ -85,6 +88,7 @@ class Downsample(nn.Module):
             x = self.conv(x)
         else:
             x = torch.nn.functional.avg_pool2d(x, kernel_size=2, stride=2)
+        udl.log_if('conv',x, 'SUBBLOCK-MINUS-1')
         return x
 
 
