@@ -414,7 +414,7 @@ class TwoStreamControlNet(nn.Module):
                     if self.infusion2base == 'add':
                         add_to_base = next(it_enc_convs_out)(h_ctr)
                         scale = next(scales)
-                        udl.print_if(f'scale = {scale}', conditions=RUN_ONCE)
+                        udl.print_if(f'scale = {scale:.4f}', conditions=RUN_ONCE)
                         h_base = h_base + add_to_base * scale
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
