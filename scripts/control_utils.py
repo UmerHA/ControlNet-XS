@@ -250,6 +250,7 @@ def get_sd_sample(
         control_scale=1.,
         shape=[4, 64, 64],
         n_prompt='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality',
+        return_latents=False,
 ):
     sampler = DDIMSampler
 
@@ -277,7 +278,7 @@ def get_sd_sample(
         "c_concat": [control[..., :shape[-2] * 8, :shape[-1] * 8]],
         "c_crossattn": [model.get_learned_conditioning([n_prompt] * num_samples)]}
 
-    samples, _ = ddim_sampler.sample(
+    samples, latents = ddim_sampler.sample(
         ddim_steps, num_samples,
         shape, cond, verbose=False, eta=eta,
         unconditional_guidance_scale=scale,
@@ -290,4 +291,7 @@ def get_sd_sample(
     #  reset scales
     model.control_model.scale_list = model.control_model.scale_list * 0. + 1.
 
-    return x_samples, control
+    if return_latents:
+        return x_samples, control, latents
+    else:
+        return x_samples, control

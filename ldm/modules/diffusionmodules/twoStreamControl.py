@@ -10,7 +10,6 @@ from ldm.modules.diffusionmodules.util import (
     checkpoint
 )
 
-
 from einops import rearrange
 from ldm.modules.attention import BasicTransformerBlock, SpatialTransformer
 from ldm.modules.diffusionmodules.openaimodel import (
@@ -22,8 +21,10 @@ from ldm.modules.diffusionmodules.openaimodel import (
     AttentionBlock,
     TimestepBlock
 )
+
 from ldm.util import exists
 
+from ...umer_debug_logger import udl
 
 class TwoStreamControlNet(nn.Module):
     def __init__(
@@ -273,20 +274,30 @@ class TwoStreamControlNet(nn.Module):
 
         ###################### Cross Control        ######################
 
+        udl.log_if('prep.x',            x,             'SUBBLOCK')
+        udl.log_if('prep.temb',         emb,           'SUBBLOCK')
+        udl.log_if('prep.context',      context,       'SUBBLOCK')
+        udl.log_if('prep.raw_hint',     hint,          'SUBBLOCK')
+        udl.log_if('prep.guided_hint',  guided_hint,   'SUBBLOCK')
+
+        RUN_ONCE = ('SUBBLOCK', 'SUBBLOCK-MINUS-1')
         if self.two_stream_mode == 'cross':
             # input blocks (encoder)
             for module_base, module_ctr in zip(base_model.input_blocks, self.control_model.input_blocks):
                 h_base = module_base(h_base, emb, context)
+                udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
                 h_ctr = module_ctr(h_ctr, emb, context)
+                udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     guided_hint = None
-
+                    udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
                 if self.guiding in ('encoder_double', 'full'):
                     if self.infusion2base == 'add':
                         h_base = h_base + next(it_enc_convs_out)(h_ctr, emb) * next(scales)
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
+                udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
 
                 hs_base.append(h_base)
                 hs_ctr.append(h_ctr)
@@ -295,15 +306,19 @@ class TwoStreamControlNet(nn.Module):
                     h_ctr = h_ctr + next(it_enc_convs_in)(h_base, emb)
                 elif self.infusion2control == 'cat':
                     h_ctr = th.cat([h_ctr, next(it_enc_convs_in)(h_base, emb)], dim=1)
+                    
+                udl.log_if('enc.h_ctrl', h_ctr, condition='SUBBLOCK')
 
             # mid blocks (bottleneck)
             h_base = base_model.middle_block(h_base, emb, context)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
+            udl.log_if('mid.h_ctrl', h_ctr, 'SUBBLOCK')
 
             if self.infusion2base == 'add':
                 h_base = h_base + self.middle_block_out(h_ctr, emb) * next(scales)
             elif self.infusion2base == 'cat':
                 raise NotImplementedError()
+            udl.log_if('mid.h_base', h_base, condition='SUBBLOCK')
 
             if self.guiding == 'full':
                 if self.infusion2control == 'add':
@@ -323,10 +338,11 @@ class TwoStreamControlNet(nn.Module):
                         h_base = h_base + next(it_dec_convs_out)(hs_ctr.pop(), emb) * next(scales)
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
-
+                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 h_base = th.cat([h_base, hs_base.pop()], dim=1)
+                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 h_base = module_base(h_base, emb, context)
-
+                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 if self.guiding == 'full':
                     h_ctr = th.cat([h_ctr, hs_ctr.pop()], dim=1)
                     h_ctr = module_ctr(h_ctr, emb, context)
@@ -341,7 +357,12 @@ class TwoStreamControlNet(nn.Module):
                         elif self.infusion2control == 'cat':
                             h_ctr = th.cat([h_ctr, next(it_dec_convs_in)(h_base, emb)], dim=1)
 
-        return base_model.out(h_base)
+        result = base_model.out(h_base)
+        udl.log_if('conv_out.h_base', result, condition='SUBBLOCK')
+
+        udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
+
+        return result
 
 
 class ControlledUNetModel(nn.Module):
