@@ -44,7 +44,7 @@ class DDIMSampler(object):
                                                                                    ddim_timesteps=self.ddim_timesteps,
                                                                                    eta=ddim_eta,verbose=verbose)
 
-        sigmas_str = '\t'.join([(i,t) for i,t in enumerate(ddim_sigmas)])
+        sigmas_str = '\t'.join([f'({i}: {t})' for i,t in enumerate(ddim_sigmas)])
         print(f'These are the timesteps: {sigmas_str}')
 
 
