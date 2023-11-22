@@ -131,6 +131,7 @@ class DDIMSampler(object):
         b = shape[0]
         if x_T is None:
             img = torch.randn(shape, device=device)
+            print(f'Created random latentes of shape {shape} starting with {img.flatten()[:5]}')
         else:
             img = x_T
 

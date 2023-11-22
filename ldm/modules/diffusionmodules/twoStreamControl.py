@@ -312,13 +312,13 @@ class TwoStreamControlNet(nn.Module):
             # mid blocks (bottleneck)
             h_base = base_model.middle_block(h_base, emb, context)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
-            udl.log_if('mid.h_ctrl', h_ctr, 'SUBBLOCK')
 
             if self.infusion2base == 'add':
                 h_base = h_base + self.middle_block_out(h_ctr, emb) * next(scales)
             elif self.infusion2base == 'cat':
                 raise NotImplementedError()
-            udl.log_if('mid.h_base', h_base, condition='SUBBLOCK')
+            udl.log_if('mid.h_base', h_base, 'SUBBLOCK')
+            udl.log_if('mid.h_ctrl', h_ctr, 'SUBBLOCK')
 
             if self.guiding == 'full':
                 if self.infusion2control == 'add':
@@ -340,7 +340,6 @@ class TwoStreamControlNet(nn.Module):
                         raise NotImplementedError()
                 udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 h_base = th.cat([h_base, hs_base.pop()], dim=1)
-                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 h_base = module_base(h_base, emb, context)
                 udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 if self.guiding == 'full':

@@ -473,7 +473,6 @@ class TwoStreamControlNet(nn.Module):
                 udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
     
                 h_base = th.cat([h_base, hs_base.pop()], dim=1)
-                udl.log_if('dec.h_base', h_base, condition='SUBBLOCK')
                 udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
                 h_base = module_base(h_base, emb, context)
                 udl.print_if('', conditions=RUN_ONCE)
