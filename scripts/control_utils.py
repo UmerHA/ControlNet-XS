@@ -258,6 +258,8 @@ def get_sd_sample(
         model.control_model.scale_list *= control_scale
         print(f'[CONTROL CORRECTION OF {type(model).__name__} SCALED WITH {control_scale}]')
     ddim_sampler = sampler(model)
+    
+
 
     detected_map = guidance
     if detected_map.shape[0] == 3:

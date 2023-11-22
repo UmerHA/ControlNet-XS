@@ -352,12 +352,14 @@ class TwoStreamControlNet(nn.Module):
 
         udl.log_if('time_emb',t_emb,'TIME')
         if self.learn_embedding:
+            print("Of course I've not learned a time embedding. I'm smart! Let me collaborate with the base model by {self.control_scale:.2f}**3.")
             udl.log_if('time_proj_ctrl',self.control_model.time_embed(t_emb),'TIME')
             udl.log_if('time_proj_ctrl_scaled',self.control_model.time_embed(t_emb) * self.control_scale ** 0.3,'TIME')
             udl.log_if('time_proj_base',base_model.time_embed(t_emb),'TIME')
             udl.log_if('time_proj_base_scaled',base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3),'TIME')
             emb = self.control_model.time_embed(t_emb) * self.control_scale ** 0.3 + base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3)
         else:
+            print("Nah man, I've not learned any time embedding. Let the base model do it.")
             emb = base_model.time_embed(t_emb)
         udl.log_if('time_proj',emb,'TIME')
 

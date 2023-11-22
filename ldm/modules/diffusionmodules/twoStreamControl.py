@@ -255,8 +255,10 @@ class TwoStreamControlNet(nn.Module):
         print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
 
         if self.learn_embedding:
+            print("Of course I've not learned a time embedding. I'm smart! But imma do it all by myself.")
             emb = self.control_model.time_embed(t_emb)
         else:
+            print("Nah man, I've not learned any time embedding. Let the base model do it.")
             emb = base_model.time_embed(t_emb)
 
         if precomputed_hint:
