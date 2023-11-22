@@ -7,7 +7,7 @@ from einops import rearrange, repeat
 from typing import Optional, Any
 
 from ldm.modules.diffusionmodules.util import checkpoint
-
+from ..umer_debug_logger import udl
 
 try:
     import xformers
@@ -210,8 +210,8 @@ class MemoryEfficientCrossAttention(nn.Module):
     # https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0):
         super().__init__()
-        print(f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
-              f"{heads} heads.")
+        #print(f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
+        #      f"{heads} heads.")
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
 
@@ -281,9 +281,28 @@ class BasicTransformerBlock(nn.Module):
         return checkpoint(self._forward, (x, context), self.parameters(), self.checkpoint)
 
     def _forward(self, x, context=None):
-        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x
-        x = self.attn2(self.norm2(x), context=context) + x
-        x = self.ff(self.norm3(x)) + x
+        norm1 = self.norm1(x)
+        attn1 = self.attn1(norm1, context=context if self.disable_self_attn else None)
+        x = attn1 + x
+        udl.log_if('norm1', norm1, 'SUBBLOCK-MINUS-1')
+        udl.log_if('attn1', attn1, 'SUBBLOCK-MINUS-1')
+        udl.log_if('add attn1', x, 'SUBBLOCK-MINUS-1')
+
+        norm2 = self.norm2(x)
+        attn2 = self.attn2(norm2, context=context)
+        x = attn2 + x
+        udl.log_if('norm2', norm2, 'SUBBLOCK-MINUS-1')
+        udl.log_if('context', context, 'SUBBLOCK-MINUS-1')
+        udl.log_if('attn2', attn2, 'SUBBLOCK-MINUS-1')
+        udl.log_if('add attn2', x, 'SUBBLOCK-MINUS-1')
+
+        norm3 = self.norm3(x)
+        ff = self.ff(norm3)
+        x = ff + x
+        udl.log_if('norm3', norm3, 'SUBBLOCK-MINUS-1')
+        udl.log_if('ff', ff, 'SUBBLOCK-MINUS-1')
+        udl.log_if('add ff', x, 'SUBBLOCK-MINUS-1')
+
         return x
 
 
@@ -338,7 +357,8 @@ class SpatialTransformer(nn.Module):
         x_in = x
         x = self.norm(x)
         if not self.use_linear:
-            x = self.proj_in(x)
+            x = self.proj_in(x) 
+        udl.log_if('proj_in', x, 'SUBBLOCK-MINUS-1')
         x = rearrange(x, 'b c h w -> b (h w) c').contiguous()
         if self.use_linear:
             x = self.proj_in(x)
@@ -349,5 +369,7 @@ class SpatialTransformer(nn.Module):
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w).contiguous()
         if not self.use_linear:
             x = self.proj_out(x)
-        return x + x_in
+        result = x + x_in
+        udl.log_if('proj_out', result, 'SUBBLOCK-MINUS-1')
 
+        return result

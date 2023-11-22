@@ -256,7 +256,9 @@ class TwoStreamControlNet(nn.Module):
 
         if self.learn_embedding:
             print("Of course I've not learned a time embedding. I'm smart! But imma do it all by myself.")
+            print(f"> Before: {t_emb.flatten()[:5]}")
             emb = self.control_model.time_embed(t_emb)
+            print(f"> After: {emb.flatten()[:5]}")
         else:
             print("Nah man, I've not learned any time embedding. Let the base model do it.")
             emb = base_model.time_embed(t_emb)

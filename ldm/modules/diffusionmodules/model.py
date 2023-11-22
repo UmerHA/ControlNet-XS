@@ -7,6 +7,7 @@ from einops import rearrange
 from typing import Optional, Any
 
 from ldm.modules.attention import MemoryEfficientCrossAttention
+from ...umer_debug_logger import udl
 
 try:
     import xformers
@@ -87,6 +88,7 @@ class Upsample(nn.Module):
         x = torch.nn.functional.interpolate(x, scale_factor=2.0, mode="nearest")
         if self.with_conv:
             x = self.conv(x)
+        udl.log_if("conv", x, "SUBBLOCK-MINUS-1")
         return x
 
 
@@ -109,6 +111,7 @@ class Downsample(nn.Module):
             x = self.conv(x)
         else:
             x = torch.nn.functional.avg_pool2d(x, kernel_size=2, stride=2)
+        udl.log_if("conv", x, "SUBBLOCK-MINUS-1")
         return x
 
 
@@ -154,22 +157,29 @@ class ResnetBlock(nn.Module):
     def forward(self, x, temb):
         h = x
         h = self.norm1(h)
+        udl.log_if("norm1", h, condition="SUBBLOCK-MINUS-1")
         h = nonlinearity(h)
         h = self.conv1(h)
+        udl.log_if("conv1", h, condition="SUBBLOCK-MINUS-1")
 
         if temb is not None:
             h = h + self.temb_proj(nonlinearity(temb))[:,:,None,None]
+            udl.log_if("add time_emb_proj", h, condition="SUBBLOCK-MINUS-1")
 
         h = self.norm2(h)
+        udl.log_if("norm2", h, condition="SUBBLOCK-MINUS-1")
         h = nonlinearity(h)
         h = self.dropout(h)
         h = self.conv2(h)
+        udl.log_if("conv2", h, condition="SUBBLOCK-MINUS-1")
 
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
                 x = self.conv_shortcut(x)
             else:
                 x = self.nin_shortcut(x)
+
+        udl.log_if("add conv_shortcut", x+h, condition="SUBBLOCK-MINUS-1")
 
         return x+h
 

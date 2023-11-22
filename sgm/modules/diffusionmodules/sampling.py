@@ -45,8 +45,9 @@ class BaseDiffusionSampler:
         sigmas = self.discretization(
             self.num_steps if num_steps is None else num_steps, device=self.device
         )
-        sigmas_str = '\t'.join([f'({i}: {t})' for i,t in enumerate(sigmas)])
-        print(f'These are the timesteps: {sigmas_str}')
+        print(f'These are the timesteps:')
+        for i,t in enumerate(sigmas):
+            print(f'> {i}: {t}')
 
         uc = default(uc, cond)
 
