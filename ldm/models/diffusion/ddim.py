@@ -23,6 +23,10 @@ class DDIMSampler(object):
     def make_schedule(self, ddim_num_steps, ddim_discretize="uniform", ddim_eta=0., verbose=True):
         self.ddim_timesteps = make_ddim_timesteps(ddim_discr_method=ddim_discretize, num_ddim_timesteps=ddim_num_steps,
                                                   num_ddpm_timesteps=self.ddpm_num_timesteps,verbose=verbose)
+        
+        timesteps_str = '\t'.join([(i,t) for i,t in enumerate(self.make_ddim_timesteps)])
+        print(f'These are the timesteps: {timesteps_str}')
+
         alphas_cumprod = self.model.alphas_cumprod
         # assert alphas_cumprod.shape[0] == self.ddpm_num_timesteps, 'alphas have to be defined for each timestep'
         to_torch = lambda x: x.clone().detach().to(torch.float32).to(self.model.device)

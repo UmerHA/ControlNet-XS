@@ -252,6 +252,8 @@ class TwoStreamControlNet(nn.Module):
 
     def forward(self, x, hint, timesteps, context, base_model, precomputed_hint=False, **kwargs):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+        print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
+
         if self.learn_embedding:
             emb = self.control_model.time_embed(t_emb)
         else:

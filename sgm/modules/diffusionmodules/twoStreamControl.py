@@ -348,6 +348,8 @@ class TwoStreamControlNet(nn.Module):
 
         udl.log_if('timestep',timesteps,'TIME')
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+        print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
+
         udl.log_if('time_emb',t_emb,'TIME')
         if self.learn_embedding:
             udl.log_if('time_proj_ctrl',self.control_model.time_embed(t_emb),'TIME')
