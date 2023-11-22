@@ -64,9 +64,6 @@ class LegacyDDPMDiscretization(Discretization):
         else:
             raise ValueError
 
-        timesteps_str = '\t'.join([(i,t) for i,t in enumerate(timesteps)])
-        print(f'These are the timesteps: {timesteps_str}')
-
         to_torch = partial(torch.tensor, dtype=torch.float32, device=device)
         sigmas = to_torch((1 - alphas_cumprod) / alphas_cumprod) ** 0.5
         return torch.flip(sigmas, (0,))
