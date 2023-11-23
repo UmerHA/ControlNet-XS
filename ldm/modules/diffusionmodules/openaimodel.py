@@ -116,6 +116,9 @@ class Upsample(nn.Module):
             x = F.interpolate(x, scale_factor=2, mode="nearest")
         if self.use_conv:
             x = self.conv(x)
+
+        udl.log_if("conv", x, "SUBBLOCK-MINUS-1")
+
         return x
 
 class TransposedUpsample(nn.Module):
@@ -156,8 +159,10 @@ class Downsample(nn.Module):
             self.op = avg_pool_nd(dims, kernel_size=stride, stride=stride)
 
     def forward(self, x):
-        assert x.shape[1] == self.channels
-        return self.op(x)
+        assert x.shape[1] == self.channels    
+        x = self.op(x)
+        udl.log_if("conv", x, "SUBBLOCK-MINUS-1")
+        return x
 
 
 class ResBlock(TimestepBlock):
@@ -250,7 +255,6 @@ class ResBlock(TimestepBlock):
         return checkpoint(
             self._forward, (x, emb), self.parameters(), self.use_checkpoint
         )
-
 
     def _forward(self, x, emb):
         print('Doing ldm..diffusionmodules.openaimodel.ResBlock:forward')
