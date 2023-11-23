@@ -46,6 +46,8 @@ class UmerDebugLogger:
 
     def log_if(self, msg, t, condition, *, print_=False):
         self.maybe_warn_of_no_condition()
+
+        if not isinstance(condition, (tuple, list)): condition = [condition]
        
         # Use inspect to get the current frame and then go back one level to find caller
         frame = inspect.currentframe()
@@ -59,7 +61,7 @@ class UmerDebugLogger:
         if not hasattr(t, 'shape'): t = torch.tensor(t)
         t = t.cpu().detach()
 
-        if condition == self.condition:
+        if self.condition in condition:
             # Save tensor to a file
             tensor_filename = f"tensor_{self.tensor_counter}.pt"
             torch.save(t, os.path.join(self.log_dir, tensor_filename))

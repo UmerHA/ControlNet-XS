@@ -280,16 +280,16 @@ class TwoStreamControlNet(nn.Module):
 
         ###################### Cross Control        ######################
 
-        udl.log_if('prep.x',            x,             'SUBBLOCK')
-        udl.log_if('prep.temb',         emb,           'SUBBLOCK')
-        udl.log_if('prep.context',      context,       'SUBBLOCK')
-        udl.log_if('prep.raw_hint',     hint,          'SUBBLOCK')
-        udl.log_if('prep.guided_hint',  guided_hint,   'SUBBLOCK')
+        udl.log_if('prep.x',            x,             ('SUBBLOCK','SUBBLOCK-MINUS-1'))
+        udl.log_if('prep.temb',         emb,           ('SUBBLOCK','SUBBLOCK-MINUS-1'))
+        udl.log_if('prep.context',      context,       ('SUBBLOCK','SUBBLOCK-MINUS-1'))
+        udl.log_if('prep.raw_hint',     hint,          ('SUBBLOCK','SUBBLOCK-MINUS-1'))
+        udl.log_if('prep.guided_hint',  guided_hint,   ('SUBBLOCK','SUBBLOCK-MINUS-1'))
 
         RUN_ONCE = ('SUBBLOCK', 'SUBBLOCK-MINUS-1')
         if self.two_stream_mode == 'cross':
             # input blocks (encoder)
-            for module_base, module_ctr in zip(base_model.input_blocks, self.control_model.input_blocks):
+            for i, (module_base, module_ctr) in enumerate(zip(base_model.input_blocks, self.control_model.input_blocks)):
                 h_base = module_base(h_base, emb, context)
                 udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
                 h_ctr = module_ctr(h_ctr, emb, context)
@@ -307,6 +307,10 @@ class TwoStreamControlNet(nn.Module):
 
                 hs_base.append(h_base)
                 hs_ctr.append(h_ctr)
+
+                if i==0:
+                    udl.log_if('conv_in.output', h_base, condition=('SUBBLOCK', 'SUBBLOCK-MINUS-1'))
+                    udl.log_if('conv_in.output', h_ctr,  condition=('SUBBLOCK', 'SUBBLOCK-MINUS-1'))
 
                 if self.infusion2control == 'add':
                     h_ctr = h_ctr + next(it_enc_convs_in)(h_base, emb)
@@ -366,6 +370,7 @@ class TwoStreamControlNet(nn.Module):
         udl.log_if('conv_out.h_base', result, condition='SUBBLOCK')
 
         udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
+        udl.stop_if('SUBBLOCK-MINUS-1', 'Alright captain. Look at all these tensors we caught. Time to do some real analysis.')
 
         return result
 
@@ -819,14 +824,29 @@ class ResBlock(TimestepBlock):
         )
 
     def _forward(self, x, emb):
+        print('Doing ldm..diffusionmodules.twoStreamControl.ResBlock:forward')
+
+        udl.log_if("input", x, condition="SUBBLOCK-MINUS-1")
+        
         if self.updown:
-            in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
-            h = in_rest(x)
+            #in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
+            #h = in_rest(x)
+            norm,silu,conv = self.in_layers
+            normed_x = norm(x)
+            h = silu(normed_x)
+
             h = self.h_upd(h)
             x = self.x_upd(x)
-            h = in_conv(h)
+            #h = in_conv(h)
+            h = conv(h)
         else:
-            h = self.in_layers(x)
+            norm,silu,conv = self.in_layers
+            normed_x = norm(x)
+            h = silu(normed_x)
+            h = conv(h)
+            #h = self.in_layers(x)
+        udl.log_if('norm1', normed_x, 'SUBBLOCK-MINUS-1')
+        udl.log_if('conv1', h, 'SUBBLOCK-MINUS-1')
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
@@ -837,8 +857,19 @@ class ResBlock(TimestepBlock):
             h = out_rest(h)
         else:
             h = h + emb_out
-            h = self.out_layers(h)
-        return self.skip_connection(x) + h
+            udl.log_if('add time_emb_proj', h, 'SUBBLOCK-MINUS-1')
+            #h = self.out_layers(h)
+            norm,silu,drop,conv = self.out_layers
+            normed_h = norm(h)
+            h = silu(normed_h)
+            h = drop(h)
+            h = conv(h)
+            udl.log_if('norm2', normed_h, 'SUBBLOCK-MINUS-1')
+            udl.log_if('conv2', h, 'SUBBLOCK-MINUS-1')
+        result = self.skip_connection(x) + h
+        udl.log_if('add conv_shortcut', result, 'SUBBLOCK-MINUS-1')
+
+        return result
 
 
 def Normalize(in_channels):

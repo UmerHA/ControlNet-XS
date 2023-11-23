@@ -44,11 +44,6 @@ class DDIMSampler(object):
                                                                                    ddim_timesteps=self.ddim_timesteps,
                                                                                    eta=ddim_eta,verbose=verbose)
 
-        print(f'These are the timesteps:')
-        for i,t in enumerate(ddim_sigmas):
-            print(f'> {i}: {t}')
-
-
         self.register_buffer('ddim_sigmas', ddim_sigmas)
         self.register_buffer('ddim_alphas', ddim_alphas)
         self.register_buffer('ddim_alphas_prev', ddim_alphas_prev)

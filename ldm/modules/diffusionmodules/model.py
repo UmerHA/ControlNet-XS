@@ -156,6 +156,7 @@ class ResnetBlock(nn.Module):
 
     def forward(self, x, temb):
         h = x
+        udl.log_if("input", h, condition="SUBBLOCK-MINUS-1")
         h = self.norm1(h)
         udl.log_if("norm1", h, condition="SUBBLOCK-MINUS-1")
         h = nonlinearity(h)

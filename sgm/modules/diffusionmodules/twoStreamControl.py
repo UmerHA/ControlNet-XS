@@ -402,7 +402,7 @@ class TwoStreamControlNet(nn.Module):
         if self.two_stream_mode == 'cross':
             # input blocks (encoder)
             debug_input_conv_done = False
-            for module_base, module_ctr in zip(base_model.input_blocks, self.control_model.input_blocks):
+            for i, (module_base, module_ctr) in enumerate(zip(base_model.input_blocks, self.control_model.input_blocks)):
                 udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
                 h_base = module_base(h_base, emb, context)
                 udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
@@ -431,6 +431,10 @@ class TwoStreamControlNet(nn.Module):
                 if not debug_input_conv_done:
                     debug_input_conv_done = True
                     udl.print_if('------ enc ------', conditions=RUN_ONCE)
+
+                if i==0:
+                    udl.log_if('conv_in.output', h_base, condition=('SUBBLOCK', 'SUBBLOCK-MINUS-1'))
+                    udl.log_if('conv_in.output', h_ctr,  condition=('SUBBLOCK', 'SUBBLOCK-MINUS-1'))
 
                 if self.infusion2control == 'add':
                     h_ctr = h_ctr + next(it_enc_convs_in)(h_base, emb)

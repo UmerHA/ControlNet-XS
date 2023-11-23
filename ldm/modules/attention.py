@@ -350,18 +350,21 @@ class SpatialTransformer(nn.Module):
         self.use_linear = use_linear
 
     def forward(self, x, context=None):
+        print('Doing ldm..attention.SpatialTransformer:forward')
+
         # note: if no context is given, cross-attention defaults to self-attention
         if not isinstance(context, list):
             context = [context]
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
+        udl.log_if('norm', x, 'SUBBLOCK-MINUS-1')
         if not self.use_linear:
             x = self.proj_in(x) 
-        udl.log_if('proj_in', x, 'SUBBLOCK-MINUS-1')
         x = rearrange(x, 'b c h w -> b (h w) c').contiguous()
         if self.use_linear:
             x = self.proj_in(x)
+        udl.log_if('proj_in', x, 'SUBBLOCK-MINUS-1')
         for i, block in enumerate(self.transformer_blocks):
             x = block(x, context=context[i])
         if self.use_linear:

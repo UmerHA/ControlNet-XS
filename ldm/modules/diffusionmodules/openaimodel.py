@@ -18,6 +18,7 @@ from ldm.modules.diffusionmodules.util import (
 from ldm.modules.attention import SpatialTransformer
 from ldm.util import exists
 
+from ...umer_debug_logger import udl
 
 # dummy replace
 def convert_module_to_f16(x):
@@ -252,14 +253,29 @@ class ResBlock(TimestepBlock):
 
 
     def _forward(self, x, emb):
+        print('Doing ldm..diffusionmodules.openaimodel.ResBlock:forward')
+
+        udl.log_if("input", x, condition="SUBBLOCK-MINUS-1")
+
         if self.updown:
-            in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
-            h = in_rest(x)
+            #in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
+            #h = in_rest(x)
+            norm,silu,conv = self.in_layers
+            normed_x = norm(x)
+            h = silu(normed_x)
+
             h = self.h_upd(h)
             x = self.x_upd(x)
-            h = in_conv(h)
+            #h = in_conv(h)
+            h = conv(h)
         else:
-            h = self.in_layers(x)
+            norm,silu,conv = self.in_layers
+            normed_x = norm(x)
+            h = silu(normed_x)
+            h = conv(h)
+            #h = self.in_layers(x)
+        udl.log_if('norm1', normed_x, 'SUBBLOCK-MINUS-1')
+        udl.log_if('conv1', h, 'SUBBLOCK-MINUS-1')
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
@@ -270,8 +286,19 @@ class ResBlock(TimestepBlock):
             h = out_rest(h)
         else:
             h = h + emb_out
-            h = self.out_layers(h)
-        return self.skip_connection(x) + h
+            udl.log_if('add time_emb_proj', h, 'SUBBLOCK-MINUS-1')
+            #h = self.out_layers(h)
+            norm,silu,drop,conv = self.out_layers
+            normed_h = norm(h)
+            h = silu(normed_h)
+            h = drop(h)
+            h = conv(h)
+            udl.log_if('norm2', normed_h, 'SUBBLOCK-MINUS-1')
+            udl.log_if('conv2', h, 'SUBBLOCK-MINUS-1')
+        result = self.skip_connection(x) + h
+        udl.log_if('add conv_shortcut', result, 'SUBBLOCK-MINUS-1')
+
+        return result
 
 
 class AttentionBlock(nn.Module):
