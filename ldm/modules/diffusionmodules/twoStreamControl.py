@@ -311,6 +311,7 @@ class TwoStreamControlNet(nn.Module):
                         udl.print_if(f'ctrl -> base connection scale factor = {mult}', conditions='SUBBLOCK')
                         to_add = to_add * mult
                         udl.log_if('enc.connection.output', h_base, condition='SUBBLOCK')
+                        h_base = h_base + to_add
 
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
