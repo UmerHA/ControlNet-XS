@@ -300,7 +300,18 @@ class TwoStreamControlNet(nn.Module):
                     udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
                 if self.guiding in ('encoder_double', 'full'):
                     if self.infusion2base == 'add':
-                        h_base = h_base + next(it_enc_convs_out)(h_ctr, emb) * next(scales)
+                        connection = next(it_enc_convs_out)
+                        w,b = connection.parameters()
+                        udl.log_if('enc.connection.input', h_base, condition='SUBBLOCK')
+                        udl.log_if('enc.connection.param.weight', w.data, condition='SUBBLOCK')
+                        udl.log_if('enc.connection.param.bias', b.data, condition='SUBBLOCK')
+                        to_add = connection(h_ctr, emb)
+                        udl.log_if('enc.connection.output_pre_mult', h_base, condition='SUBBLOCK')
+                        mult = next(scales)
+                        udl.print_if(f'ctrl -> base connection scale factor = {mult}', conditions='SUBBLOCK')
+                        to_add = to_add * mult
+                        udl.log_if('enc.connection.output', h_base, condition='SUBBLOCK')
+
                     elif self.infusion2base == 'cat':
                         raise NotImplementedError()
                 udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
@@ -313,9 +324,17 @@ class TwoStreamControlNet(nn.Module):
                     udl.log_if('conv_in.output', h_ctr,  condition=('SUBBLOCK', 'SUBBLOCK-MINUS-1'))
 
                 if self.infusion2control == 'add':
+                    print('infusion2control is ADD !')
                     h_ctr = h_ctr + next(it_enc_convs_in)(h_base, emb)
                 elif self.infusion2control == 'cat':
-                    h_ctr = th.cat([h_ctr, next(it_enc_convs_in)(h_base, emb)], dim=1)
+                    connection = next(it_enc_convs_in)
+                    w,b = connection.parameters()
+                    udl.log_if('enc.connection.input', h_base, condition='SUBBLOCK')
+                    udl.log_if('enc.connection.param.weight', w.data, condition='SUBBLOCK')
+                    udl.log_if('enc.connection.param.bias', b.data, condition='SUBBLOCK')
+                    to_concat = connection(h_base, emb)
+                    udl.log_if('enc.connection.output', h_base, condition='SUBBLOCK')
+                    h_ctr = th.cat([h_ctr, to_concat], dim=1)
                     
                 udl.log_if('enc.h_ctrl', h_ctr, condition='SUBBLOCK')
 
