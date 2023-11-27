@@ -267,7 +267,7 @@ class DDIMSampler(object):
         unscaled_noise = noise_like(x.shape, device, repeat_noise)
         noise = sigma_t * unscaled_noise * temperature
 
-        udl.print_if(f'α = {a_t[0]:.4f}, α_prev = {a_prev[0]:.4f}, β = {sqrt_one_minus_at[0]**2:.4f}, η = {self.ddim_eta:.4f}, σ = {sigma_t[0]:.4f}', 'STEP')
+        udl.print_if(f'α = {a_t[0].item():.4f}, α_prev = {a_prev[0].item():.4f}, β = {sqrt_one_minus_at[0].item()**2:.4f}, η = {self.ddim_eta:.4f}, σ = {sigma_t[0].item():.4f}', 'STEP')
 
 
         if noise_dropout > 0.:
