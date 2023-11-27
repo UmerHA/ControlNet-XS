@@ -257,8 +257,6 @@ class ResBlock(TimestepBlock):
         )
 
     def _forward(self, x, emb):
-        print('Doing ldm..diffusionmodules.openaimodel.ResBlock:forward')
-
         udl.log_if("input", x, condition="SUBBLOCK-MINUS-1")
 
         if self.updown:

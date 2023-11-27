@@ -56,7 +56,7 @@ def make_ddim_timesteps(ddim_discr_method, num_ddim_timesteps, num_ddpm_timestep
     # add one to get the final alpha values right (the ones from first scale to data during sampling)
     steps_out = ddim_timesteps + 1
     if verbose:
-        print(f'Selected timesteps for ddim sampler: {steps_out}')
+        print(f'Selected timesteps for ddim sampler:\n{steps_out}')
     return steps_out
 
 
@@ -68,9 +68,13 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
     # according the the formula provided in https://arxiv.org/abs/2010.02502
     sigmas = eta * np.sqrt((1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev))
     if verbose:
-        print(f'Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}')
+        alphas_fmt = "  ".join([f"{o:.4f}" for o in alphas])
+        alphas_prev_fmt = "  ".join([f"{o:.4f}" for o in alphas_prev])
+        sigmas_fmt = "  ".join([f"{o:.4f}" for o in sigmas])
+
+        print(f'Selected alphas for ddim sampler:\n-- a_t:\n{alphas_fmt};\n-- a_(t-1):\n{alphas_prev_fmt}')
         print(f'For the chosen value of eta, which is {eta}, '
-              f'this results in the following sigma_t schedule for ddim sampler {sigmas}')
+              f'this results in the following sigma_t schedule for ddim sampler:\n{sigmas_fmt}')
     return sigmas, alphas, alphas_prev
 
 

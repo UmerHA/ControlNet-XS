@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from ldm.modules.diffusionmodules.util import make_ddim_sampling_parameters, make_ddim_timesteps, noise_like, extract_into_tensor
 
+from ...umer_debug_logger import udl
 
 class DDIMSampler(object):
     def __init__(self, model, schedule="linear", **kwargs):
@@ -219,7 +220,13 @@ class DDIMSampler(object):
             else:
                 c_in = torch.cat([unconditional_conditioning, c])
             model_uncond, model_t = self.model.apply_model(x_in, t_in, c_in).chunk(2)
+
+            udl.log_if('noise_pred_uncond', model_uncond, condition='STEP')
+            udl.log_if('noise_pred_text', model_t, condition='STEP')
+
             model_output = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
+
+            udl.log_if('noise_pred__after_cfg', model_output, condition='STEP')
 
         if self.model.parameterization == "v":
             e_t = self.model.predict_eps_from_z_and_v(x, t, model_output)
@@ -258,6 +265,9 @@ class DDIMSampler(object):
         if noise_dropout > 0.:
             noise = torch.nn.functional.dropout(noise, p=noise_dropout)
         x_prev = a_prev.sqrt() * pred_x0 + dir_xt + noise
+
+        udl.log_if('latents', x_prev, condition='STEP')
+
         return x_prev, pred_x0
 
     @torch.no_grad()

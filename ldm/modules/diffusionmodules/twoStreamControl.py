@@ -255,12 +255,8 @@ class TwoStreamControlNet(nn.Module):
         print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
 
         if self.learn_embedding:
-            print("Of course I've not learned a time embedding. I'm smart! But imma do it all by myself.")
-            print(f"> Before: {t_emb.flatten()[:5]}")
             emb = self.control_model.time_embed(t_emb)
-            print(f"> After: {emb.flatten()[:5]}")
         else:
-            print("Nah man, I've not learned any time embedding. Let the base model do it.")
             emb = base_model.time_embed(t_emb)
 
         if precomputed_hint:
@@ -387,7 +383,7 @@ class TwoStreamControlNet(nn.Module):
                             h_ctr = th.cat([h_ctr, next(it_dec_convs_in)(h_base, emb)], dim=1)
 
         result = base_model.out(h_base)
-        udl.log_if('conv_out.h_base', result, condition='SUBBLOCK')
+        udl.log_if('conv_out.h_base', result, condition=('SUBBLOCK', 'STEP'))
 
         udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
         udl.stop_if('SUBBLOCK-MINUS-1', 'Alright captain. Look at all these tensors we caught. Time to do some real analysis.')
@@ -844,8 +840,6 @@ class ResBlock(TimestepBlock):
         )
 
     def _forward(self, x, emb):
-        print('Doing ldm..diffusionmodules.twoStreamControl.ResBlock:forward')
-
         udl.log_if("input", x, condition="SUBBLOCK-MINUS-1")
         
         if self.updown:
