@@ -45,6 +45,9 @@ class DDIMSampler(object):
                                                                                    ddim_timesteps=self.ddim_timesteps,
                                                                                    eta=ddim_eta,verbose=verbose)
 
+        # by umer: save eta for later logging
+        self.register_buffer('ddim_eta', ddim_eta)
+
         self.register_buffer('ddim_sigmas', ddim_sigmas)
         self.register_buffer('ddim_alphas', ddim_alphas)
         self.register_buffer('ddim_alphas_prev', ddim_alphas_prev)
@@ -101,7 +104,7 @@ class DDIMSampler(object):
         # sampling
         C, H, W = shape
         size = (batch_size, C, H, W)
-        print(f'Data shape for DDIM sampling is {size}, eta {eta}')
+        print(f'Data shape for DDIM sampling is {size}, eta {eta}, temperature {temperature}')
 
         samples, intermediates = self.ddim_sampling(conditioning, size,
                                                     callback=callback,
@@ -261,10 +264,29 @@ class DDIMSampler(object):
 
         # direction pointing to x_t
         dir_xt = (1. - a_prev - sigma_t**2).sqrt() * e_t
-        noise = sigma_t * noise_like(x.shape, device, repeat_noise) * temperature
+        unscaled_noise = noise_like(x.shape, device, repeat_noise)
+        noise = sigma_t * unscaled_noise * temperature
+
+        udl.print_if(f'α = {a_t[0]:.4f}, α_prev = {a_prev[0]:.4f}, β = {sqrt_one_minus_at[0]**2:.4f}, η = {self.ddim_eta:.4f}, σ = {sigma_t[0]:.4f}', 'STEP')
+
+
         if noise_dropout > 0.:
             noise = torch.nn.functional.dropout(noise, p=noise_dropout)
-        x_prev = a_prev.sqrt() * pred_x0 + dir_xt + noise
+        x_prev_no_noise = a_prev.sqrt() * pred_x0 + dir_xt # by umer
+        x_prev = x_prev_no_noise + noise
+
+        udl.log_if('pred_x0', pred_x0, 'STEP')
+        udl.log_if('f', e_t, 'STEP')
+
+        udl.log_if('dir_xt', dir_xt, 'STEP')
+
+        udl.log_if('x_prev_no_noise', x_prev_no_noise, 'STEP')
+
+        udl.log_if('noise', unscaled_noise, 'STEP')
+        udl.log_if('scaled_noise', noise, 'STEP')
+        udl.log_if('x_prev', x_prev, 'STEP')
+
+        # ---
 
         udl.log_if('latents', x_prev, condition='STEP')
 
