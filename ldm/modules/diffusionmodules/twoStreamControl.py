@@ -383,7 +383,7 @@ class TwoStreamControlNet(nn.Module):
                             h_ctr = th.cat([h_ctr, next(it_dec_convs_in)(h_base, emb)], dim=1)
 
         result = base_model.out(h_base)
-        udl.log_if('conv_out.h_base', result, condition=('SUBBLOCK', 'STEP'))
+        udl.log_if('conv_out.h_base', result, condition='SUBBLOCK')
 
         udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
         udl.stop_if('SUBBLOCK-MINUS-1', 'Alright captain. Look at all these tensors we caught. Time to do some real analysis.')
