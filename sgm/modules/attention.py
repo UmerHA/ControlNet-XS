@@ -476,25 +476,25 @@ class BasicTransformerBlock(nn.Module):
             )
         )
         x = attn1_output + x
-        udl.log_if('attn1', attn1_output, 'SUBBLOCK-MINUS-1')
-        udl.log_if('add attn1', x, 'SUBBLOCK-MINUS-1')
+        udl.log_if("attn1", attn1_output, udl.SUBBLOCKM1)
+        udl.log_if("add attn1", x, udl.SUBBLOCKM1)
 
         norm2_x = self.norm2(x)
-        udl.log_if('norm2', norm2_x, 'SUBBLOCK-MINUS-1')
-        udl.log_if('context', context, 'SUBBLOCK-MINUS-1')
+        #udl.log_if('norm2', norm2_x, 'SUBBLOCK-MINUS-1')
+        #udl.log_if('context', context, 'SUBBLOCK-MINUS-1')
         attn2_output = (
             self.attn2(
                 norm2_x, context=context, additional_tokens=additional_tokens
             )
         )
         x = attn2_output + x
-        udl.log_if('attn2', attn2_output, 'SUBBLOCK-MINUS-1')
-        udl.log_if('add attn2', x, 'SUBBLOCK-MINUS-1')
+        udl.log_if("attn2", attn2_output, udl.SUBBLOCKM1)
+        udl.log_if("add attn2", x, udl.SUBBLOCKM1)
 
         ff_output = self.ff(self.norm3(x))
         x = ff_output + x
-        udl.log_if('ff', ff_output, 'SUBBLOCK-MINUS-1')
-        udl.log_if('add ff', x, 'SUBBLOCK-MINUS-1')
+        udl.log_if("ff", ff_output, udl.SUBBLOCKM1)
+        udl.log_if("add ff", x, udl.SUBBLOCKM1)
 
         return x
 

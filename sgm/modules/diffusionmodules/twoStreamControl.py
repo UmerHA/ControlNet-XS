@@ -371,34 +371,37 @@ class TwoStreamControlNet(nn.Module):
             hint_processed = torch.stack(hints).to(x.device)
             hint = hint_processed.to(memory_format=torch.contiguous_format).float()
 
-        udl.log_if('timestep',timesteps,'TIME')
+        udl.log_if('sample', x, udl.SUBBLOCK)
+        udl.log_if('timestep', torch.tensor(timesteps, dtype=torch.float32), udl.SUBBLOCK)
+        udl.log_if('encoder_hidden_states', context, udl.SUBBLOCK)
+
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         #print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
 
         udl.log_if('time_emb',t_emb,'TIME')
         if self.learn_embedding:
             print("Of course I've not learned a time embedding. I'm smart! Let me collaborate with the base model by {self.control_scale:.2f}**3.")
-            udl.log_if('time_proj_ctrl',self.control_model.time_embed(t_emb),'TIME')
-            udl.log_if('time_proj_ctrl_scaled',self.control_model.time_embed(t_emb) * self.control_scale ** 0.3,'TIME')
-            udl.log_if('time_proj_base',base_model.time_embed(t_emb),'TIME')
-            udl.log_if('time_proj_base_scaled',base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3),'TIME')
+            #udl.log_if('time_proj_ctrl',self.control_model.time_embed(t_emb),'TIME')
+            #udl.log_if('time_proj_ctrl_scaled',self.control_model.time_embed(t_emb) * self.control_scale ** 0.3,'TIME')
+            #udl.log_if('time_proj_base',base_model.time_embed(t_emb),'TIME')
+            #udl.log_if('time_proj_base_scaled',base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3),'TIME')
             emb = self.control_model.time_embed(t_emb) * self.control_scale ** 0.3 + base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3)
         else:
             print("Nah man, I've not learned any time embedding. Let the base model do it.")
             emb = base_model.time_embed(t_emb)
-        udl.log_if('time_proj',emb,'TIME')
+        #udl.log_if('time_proj',emb,'TIME')
 
 
         if y is not None:
             assert y.shape[0] == x.shape[0]
-            udl.log_if('text_embeds',y[:,:1280],'TIME')
-            udl.log_if('add_input',torch.tensor([-1.,-1., -1.,-1.,-1, -1., -1., -1., -1., -1., -1., -1.]),'TIME')
-            udl.log_if('add_emb',y[:,1280:],'TIME')
-            udl.log_if('add_proj',base_model.label_emb(y),'TIME')
+            #udl.log_if('text_embeds',y[:,:1280],'TIME')
+            #udl.log_if('add_input',torch.tensor([-1.,-1., -1.,-1.,-1, -1., -1., -1., -1., -1., -1., -1.]),'TIME')
+            #udl.log_if('add_emb',y[:,1280:],'TIME')
+            #udl.log_if('add_proj',base_model.label_emb(y),'TIME')
             emb = emb + base_model.label_emb(y)
-            udl.log_if('final_temb',emb,'TIME')
+            #udl.log_if('final_temb',emb,'TIME')
 
-        udl.stop_if('TIME', 'Time to analyze time!')
+        #udl.stop_if('TIME', 'Time to analyze time!')
         
         if precomputed_hint:
             guided_hint = hint
@@ -406,6 +409,9 @@ class TwoStreamControlNet(nn.Module):
             guided_hint = self.input_hint_block(hint)#, emb, context)
 
         h_ctr = h_base = x
+        udl.log_if('h_ctrl', h_ctr, udl.SUBBLOCK)
+        udl.log_if('h_base', h_base, udl.SUBBLOCK)
+
         hs_base = []
         hs_ctr = []
         it_enc_convs_in = iter(self.enc_zero_convs_in)
@@ -419,37 +425,47 @@ class TwoStreamControlNet(nn.Module):
             #  input blocks (encoder)
             for module_base, module_ctr in zip(base_model.input_blocks, self.control_model.input_blocks):
                 h_base = module_base(h_base, emb, context)
+                udl.log_if('base', h_base, udl.SUBBLOCK)
+
                 if "PseudoModule" not in str(type(module_ctr)):
                     h_ctr = module_ctr(h_ctr, emb, context)
+                    udl.log_if('ctrl', h_ctrl, udl.SUBBLOCK)
+
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     guided_hint = None
                     udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
+
                 if self.guiding in ('encoder_double', 'full'):
                     h_base = self.infuse(h_base, h_ctr, next(it_enc_convs_out), self.infusion2base, emb, scale=next(scales))
+                    udl.log_if('add c2b', h_base, udl.SUBBLOCK)
 
                 hs_base.append(h_base)
                 hs_ctr.append(h_ctr)
 
                 if "PseudoModule" not in str(type(module_ctr)):
                     h_ctr = self.infuse(h_ctr, h_base, next(it_enc_convs_in), self.infusion2control, emb)
+                    udl.log_if('concat b2c', h_base, udl.SUBBLOCK)
 
             # mid blocks (bottleneck)
-            udl.print_if('------ mid ------', conditions=RUN_ONCE)
-            udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
+            #udl.print_if('------ mid ------', conditions=RUN_ONCE)
+            #udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
             h_base = base_model.middle_block(h_base, emb, context)
-            udl.log_if('mid.h_base', h_base, 'SUBBLOCK')
-            udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
+            udl.log_if('base', h_base, udl.SUBBLOCK)
+            #udl.log_if('mid.h_base', h_base, 'SUBBLOCK')
+            #udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
-            udl.log_if('mid.h_ctrl', h_ctr, 'SUBBLOCK')
+            udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
+            #udl.log_if('mid.h_ctrl', h_ctr, 'SUBBLOCK')
 
             h_base = self.infuse(h_base, h_ctr, self.middle_block_out, self.infusion2base, emb, scale=next(scales))
+            udl.log_if('add c2b', h_base, udl.SUBBLOCK)
 
             if self.guiding == 'full':
                 h_ctr = self.infuse(h_ctr, h_base, self.middle_block_in, self.infusion2control, emb)
 
             # output blocks (decoder)
-            udl.print_if('------ dec ------', conditions=RUN_ONCE)
+            #udl.print_if('------ dec ------', conditions=RUN_ONCE)
             for module_base, module_ctr in zip(
                     base_model.output_blocks,
                     self.control_model.output_blocks if hasattr(
@@ -458,13 +474,15 @@ class TwoStreamControlNet(nn.Module):
 
                 if self.guiding != 'full':
                     h_base = self.infuse(h_base, hs_ctr.pop(), next(it_dec_convs_out), self.infusion2base, emb, scale=next(scales))
+                    udl.log_if('add c2b', h_base, udl.SUBBLOCK)
 
                 h_base = th.cat([h_base, hs_base.pop()], dim=1)
-                udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
                 h_base = module_base(h_base, emb, context)
+                udl.log_if('base', h_base, udl.SUBBLOCK)
 
                 ##### Quick and dirty way of fixing "full" with not applying corrections to the last layer #####
                 if self.guiding == 'full':
+                    print('umer: wtf, i thought this will never be run')
                     h_ctr = th.cat([h_ctr, hs_ctr.pop()], dim=1)
                     h_ctr = module_ctr(h_ctr, emb, context)
                     if module_base != base_model.output_blocks[-1]:
@@ -474,12 +492,10 @@ class TwoStreamControlNet(nn.Module):
         h_base = h_base.type(x.dtype)
 
         result = base_model.out(h_base)
-        udl.log_if('conv_out.h_base', result, condition='SUBBLOCK')
-        udl.print_if('',conditions=RUN_ONCE)
+        udl.log_if('conv_out', h_base, udl.SUBBLOCK)
 
-        udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
-        udl.stop_if('SUBBLOCK-MINUS-1', 'Alright captain. Look at all these tensors we caught. Time to do some real analysis.')
-
+        udl.stop_if(udl.SUBBLOCK, 'It is done, my dude. Let us look at these tensors.')
+        
         return result
 
 

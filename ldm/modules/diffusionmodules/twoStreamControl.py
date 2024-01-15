@@ -1170,29 +1170,31 @@ class ResBlock(TimestepBlock):
             h = silu(normed_x)
             h = conv(h)
             #h = self.in_layers(x)
-        udl.log_if('norm1', normed_x, 'SUBBLOCK-MINUS-1')
-        udl.log_if('conv1', h, 'SUBBLOCK-MINUS-1')
+        udl.log_if("conv1", h, udl.SUBBLOCKM1)
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
         if self.use_scale_shift_norm:
+            print('umer: wtfff?')
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = th.chunk(emb_out, 2, dim=1)
             h = out_norm(h) * (1 + scale) + shift
             h = out_rest(h)
         else:
             h = h + emb_out
-            udl.log_if('add time_emb_proj', h, 'SUBBLOCK-MINUS-1')
+
+            udl.log_if("temb", emb_out, udl.SUBBLOCKM1)
+            udl.log_if("add temb", h, udl.SUBBLOCKM1)
+
             #h = self.out_layers(h)
             norm,silu,drop,conv = self.out_layers
             normed_h = norm(h)
             h = silu(normed_h)
             h = drop(h)
             h = conv(h)
-            udl.log_if('norm2', normed_h, 'SUBBLOCK-MINUS-1')
-            udl.log_if('conv2', h, 'SUBBLOCK-MINUS-1')
+            udl.log_if("conv2", h, udl.SUBBLOCKM1)
         result = self.skip_connection(x) + h
-        udl.log_if('add conv_shortcut', result, 'SUBBLOCK-MINUS-1')
+        udl.log_if("out", result, udl.SUBBLOCKM1)
 
         return result
 
