@@ -273,11 +273,14 @@ class TwoStreamControlNet(nn.Module):
         if no_control or self.no_control:
             return base_model(x=x, timesteps=timesteps, context=context, **kwargs)
 
-        x, timesteps, context = udl.do_input_action(x=x, t=timesteps, xcross=context)
+        x, timesteps, context, hint = udl.do_input_action(x=x, t=timesteps, xcross=context, hint=hint)
 
         udl.log_if('sample', x, udl.SUBBLOCK)
         udl.log_if('timestep', timesteps, udl.SUBBLOCK)
         udl.log_if('encoder_hidden_states', context, udl.SUBBLOCK)
+        udl.log_if('controlnet_cond', hint , udl.SUBBLOCK)
+
+        udl.stop_if(udl.SUBBLOCK, 'Stopping early bc only wanted input saved')
 
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         #print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
