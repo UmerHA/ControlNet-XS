@@ -273,7 +273,7 @@ class TwoStreamControlNet(nn.Module):
         if no_control or self.no_control:
             return base_model(x=x, timesteps=timesteps, context=context, **kwargs)
 
-        sample, timesteps, encoder_hidden_states = udl.do_input_action(x=sample, t=timesteps, xcross=encoder_hidden_states)
+        x, timesteps, context = udl.do_input_action(x=x, t=timesteps, xcross=context)
 
         udl.log_if('sample', x, udl.SUBBLOCK)
         udl.log_if('timestep', timesteps, udl.SUBBLOCK)
@@ -306,23 +306,16 @@ class TwoStreamControlNet(nn.Module):
 
         ###################### Cross Control        ######################
 
-        udl.log_if('prep.x',            x,             ('SUBBLOCK','SUBBLOCK-MINUS-1'))
-        udl.log_if('prep.temb',         emb,           ('SUBBLOCK','SUBBLOCK-MINUS-1'))
-        udl.log_if('prep.context',      context,       ('SUBBLOCK','SUBBLOCK-MINUS-1'))
-        udl.log_if('prep.raw_hint',     hint,          ('SUBBLOCK','SUBBLOCK-MINUS-1'))
-        udl.log_if('prep.guided_hint',  guided_hint,   ('SUBBLOCK','SUBBLOCK-MINUS-1'))
-
         if self.two_stream_mode == 'cross':
             # input blocks (encoder)
             for i, (module_base, module_ctr) in enumerate(zip(base_model.input_blocks, self.control_model.input_blocks)):
                 h_base = module_base(h_base, emb, context)
                 udl.log_if('base', h_base, udl.SUBBLOCK)
                 h_ctr = module_ctr(h_ctr, emb, context)
-                    udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
+                udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     guided_hint = None
-                    udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
                 if self.guiding in ('encoder_double', 'full'):
                     h_base = self.infuse(h_base, h_ctr, next(it_enc_convs_out), self.infusion2base, emb, scale=next(scales))
                     udl.log_if('add c2b', h_base, udl.SUBBLOCK)
@@ -1165,9 +1158,7 @@ class ResBlock(TimestepBlock):
             self._forward, (x, emb), self.parameters(), self.use_checkpoint
         )
 
-    def _forward(self, x, emb):
-        udl.log_if("input", x, condition="SUBBLOCK-MINUS-1")
-        
+    def _forward(self, x, emb):        
         if self.updown:
             #in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             #h = in_rest(x)
