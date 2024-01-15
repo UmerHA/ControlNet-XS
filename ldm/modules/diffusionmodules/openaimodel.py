@@ -117,8 +117,6 @@ class Upsample(nn.Module):
         if self.use_conv:
             x = self.conv(x)
 
-        udl.log_if("conv", x, "SUBBLOCK-MINUS-1")
-
         return x
 
 class TransposedUpsample(nn.Module):

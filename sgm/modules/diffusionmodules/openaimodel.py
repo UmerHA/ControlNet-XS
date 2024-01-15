@@ -96,7 +96,6 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     ):
         def cls_name(x): return str(type(x)).split('.')[-1].replace("'>",'')
         content = ' '.join(cls_name(m) for m in self)
-        udl.print_if(f'TimestepEmbedSequential.forward with content {content}', 'SUBBLOCK-MINUS-1')
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
@@ -144,7 +143,6 @@ class Upsample(nn.Module):
             x = F.interpolate(x, scale_factor=2, mode="nearest")
         if self.use_conv:
             x = self.conv(x)
-        udl.log_if('conv',x, 'SUBBLOCK-MINUS-1')
         return x
 
 
@@ -205,7 +203,6 @@ class Downsample(nn.Module):
     def forward(self, x):
         assert x.shape[1] == self.channels
         x = self.op(x)
-        udl.log_if('conv',x, 'SUBBLOCK-MINUS-1')
         return x
 
 

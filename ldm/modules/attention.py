@@ -284,22 +284,18 @@ class BasicTransformerBlock(nn.Module):
         norm1 = self.norm1(x)
         attn1 = self.attn1(norm1, context=context if self.disable_self_attn else None)
         x = attn1 + x
-        #udl.log_if('norm1', norm1, 'SUBBLOCK-MINUS-1')
         udl.log_if("attn1", attn1, udl.SUBBLOCKM1)
         udl.log_if("add attn1", x, udl.SUBBLOCKM1)
 
         norm2 = self.norm2(x)
         attn2 = self.attn2(norm2, context=context)
         x = attn2 + x
-        #udl.log_if('norm2', norm2, 'SUBBLOCK-MINUS-1')
-        #udl.log_if('context', context, 'SUBBLOCK-MINUS-1')
         udl.log_if("attn2", attn2, udl.SUBBLOCKM1)
         udl.log_if("add attn2", x, udl.SUBBLOCKM1)
 
         norm3 = self.norm3(x)
         ff = self.ff(norm3)
         x = ff + x
-        #udl.log_if('norm3', norm3, 'SUBBLOCK-MINUS-1')
         udl.log_if("ff", ff, udl.SUBBLOCKM1)
         udl.log_if("add ff", x, udl.SUBBLOCKM1)
 

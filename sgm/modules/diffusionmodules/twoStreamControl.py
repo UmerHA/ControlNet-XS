@@ -435,8 +435,7 @@ class TwoStreamControlNet(nn.Module):
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     guided_hint = None
-                    #udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
-
+                    
                 if self.guiding in ('encoder_double', 'full'):
                     h_base = self.infuse(h_base, h_ctr, next(it_enc_convs_out), self.infusion2base, emb, scale=next(scales))
                     udl.log_if('add c2b', h_base, udl.SUBBLOCK)
@@ -453,12 +452,10 @@ class TwoStreamControlNet(nn.Module):
             #udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
             h_base = base_model.middle_block(h_base, emb, context)
             udl.log_if('base', h_base, udl.SUBBLOCK)
-            #udl.log_if('mid.h_base', h_base, 'SUBBLOCK')
             #udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
             udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
-            #udl.log_if('mid.h_ctrl', h_ctr, 'SUBBLOCK')
-
+            
             h_base = self.infuse(h_base, h_ctr, self.middle_block_out, self.infusion2base, emb, scale=next(scales))
             udl.log_if('add c2b', h_base, udl.SUBBLOCK)
 
@@ -1722,12 +1719,14 @@ class SpatialTransformer(nn.Module):
         x_in = x
         # # # 1 - In
         x = self.norm(x)
+        udl.log_if('norm', x, udl.SUBBLOCKM1)
+
         if not self.use_linear:
             x = self.proj_in(x)
         x = rearrange(x, "b c h w -> b (h w) c").contiguous()
         if self.use_linear:
             x = self.proj_in(x)
-        udl.log_if('proj_in', x, 'SUBBLOCK-MINUS-1')
+        udl.log_if('proj_in', x, udl.SUBBLOCKM1)
 
         # # # 2 - Tranformer blocks
         for i, block in enumerate(self.transformer_blocks):
@@ -1743,7 +1742,7 @@ class SpatialTransformer(nn.Module):
             x = self.proj_out(x)
         
         result = x + x_in
-        udl.log_if('proj_out', result, 'SUBBLOCK-MINUS-1')
+        udl.log_if('proj_out', result, udl.SUBBLOCKM1)
 
         return result
     
