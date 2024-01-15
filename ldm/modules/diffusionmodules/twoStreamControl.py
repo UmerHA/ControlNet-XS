@@ -273,6 +273,12 @@ class TwoStreamControlNet(nn.Module):
         if no_control or self.no_control:
             return base_model(x=x, timesteps=timesteps, context=context, **kwargs)
 
+        sample, timesteps, encoder_hidden_states = udl.do_input_action(x=sample, t=timesteps, xcross=encoder_hidden_states)
+
+        udl.log_if('sample', x, udl.SUBBLOCK)
+        udl.log_if('timestep', timesteps, udl.SUBBLOCK)
+        udl.log_if('encoder_hidden_states', context, udl.SUBBLOCK)
+
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         #print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
 
@@ -287,6 +293,9 @@ class TwoStreamControlNet(nn.Module):
             guided_hint = self.input_hint_block(hint, emb, context)
 
         h_ctr = h_base = x.type(base_model.dtype)
+        udl.log_if('h_ctrl', h_ctr, udl.SUBBLOCK)
+        udl.log_if('h_base', h_base, udl.SUBBLOCK)
+
         hs_base = []
         hs_ctr = []
         it_enc_convs_in = iter(self.enc_zero_convs_in)
@@ -303,31 +312,35 @@ class TwoStreamControlNet(nn.Module):
         udl.log_if('prep.raw_hint',     hint,          ('SUBBLOCK','SUBBLOCK-MINUS-1'))
         udl.log_if('prep.guided_hint',  guided_hint,   ('SUBBLOCK','SUBBLOCK-MINUS-1'))
 
-        RUN_ONCE = ('SUBBLOCK', 'SUBBLOCK-MINUS-1')
         if self.two_stream_mode == 'cross':
             # input blocks (encoder)
             for i, (module_base, module_ctr) in enumerate(zip(base_model.input_blocks, self.control_model.input_blocks)):
                 h_base = module_base(h_base, emb, context)
-                udl.log_if('enc.h_base', h_base, 'SUBBLOCK')
+                udl.log_if('base', h_base, udl.SUBBLOCK)
                 h_ctr = module_ctr(h_ctr, emb, context)
-                udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
+                    udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     guided_hint = None
                     udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
                 if self.guiding in ('encoder_double', 'full'):
                     h_base = self.infuse(h_base, h_ctr, next(it_enc_convs_out), self.infusion2base, emb, scale=next(scales))
+                    udl.log_if('add c2b', h_base, udl.SUBBLOCK)
 
                 hs_base.append(h_base)
                 hs_ctr.append(h_ctr)
 
                 h_ctr = self.infuse(h_ctr, h_base, next(it_enc_convs_in), self.infusion2control, emb)
+                udl.log_if('concat b2c', h_base, udl.SUBBLOCK)
 
             # mid blocks (bottleneck)
             h_base = base_model.middle_block(h_base, emb, context)
+            udl.log_if('base', h_base, udl.SUBBLOCK)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
-
+            udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
+            
             h_base = self.infuse(h_base, h_ctr, self.middle_block_out, self.infusion2base, emb, scale=next(scales))
+            udl.log_if('add c2b', h_base, udl.SUBBLOCK)
 
             if self.guiding == 'full':
                 h_ctr = self.infuse(h_ctr, h_base, self.middle_block_in, self.infusion2control, emb)
@@ -341,12 +354,15 @@ class TwoStreamControlNet(nn.Module):
 
                 if self.guiding != 'full':
                     h_base = self.infuse(h_base, hs_ctr.pop(), next(it_dec_convs_out), self.infusion2base, emb, scale=next(scales))
+                    udl.log_if('add c2b', h_base, udl.SUBBLOCK)
 
                 h_base = th.cat([h_base, hs_base.pop()], dim=1)
                 h_base = module_base(h_base, emb, context)
+                udl.log_if('base', h_base, udl.SUBBLOCK)
 
                 ##### Quick and dirty attempt of fixing "full" with not applying corrections to the last layer #####
                 if self.guiding == 'full':
+                    print('umer: wtf, i thought this will never be run (ldm)')
                     h_ctr = th.cat([h_ctr, hs_ctr.pop()], dim=1)
                     h_ctr = module_ctr(h_ctr, emb, context)
                     if module_base != base_model.output_blocks[-1]:
@@ -354,10 +370,9 @@ class TwoStreamControlNet(nn.Module):
                         h_ctr = self.infuse(h_ctr, h_base, next(it_dec_convs_in), self.infusion2control, emb)
 
         result = base_model.out(h_base)
-        udl.log_if('conv_out.h_base', result, condition='SUBBLOCK')
+        udl.log_if('conv_out', h_base, udl.SUBBLOCK)
 
-        udl.stop_if('SUBBLOCK', 'The subblocks are cought. Let us gaze into their soul, their very essence.')
-        udl.stop_if('SUBBLOCK-MINUS-1', 'Alright captain. Look at all these tensors we caught. Time to do some real analysis.')
+        udl.stop_if(udl.SUBBLOCK, 'It is done, my dude. Let us look at these tensors.')
 
         return result
 

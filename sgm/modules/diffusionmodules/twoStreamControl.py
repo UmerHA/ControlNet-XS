@@ -371,6 +371,7 @@ class TwoStreamControlNet(nn.Module):
             hint_processed = torch.stack(hints).to(x.device)
             hint = hint_processed.to(memory_format=torch.contiguous_format).float()
 
+        # umer: logs outdated - see ldm for accurate log statements
         udl.log_if('sample', x, udl.SUBBLOCK)
         udl.log_if('timestep', torch.tensor(timesteps, dtype=torch.float32), udl.SUBBLOCK)
         udl.log_if('encoder_hidden_states', context, udl.SUBBLOCK)
@@ -434,7 +435,7 @@ class TwoStreamControlNet(nn.Module):
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
                     guided_hint = None
-                    udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
+                    #udl.log_if('enc.h_ctrl', h_ctr, 'SUBBLOCK')
 
                 if self.guiding in ('encoder_double', 'full'):
                     h_base = self.infuse(h_base, h_ctr, next(it_enc_convs_out), self.infusion2base, emb, scale=next(scales))
@@ -482,7 +483,7 @@ class TwoStreamControlNet(nn.Module):
 
                 ##### Quick and dirty way of fixing "full" with not applying corrections to the last layer #####
                 if self.guiding == 'full':
-                    print('umer: wtf, i thought this will never be run')
+                    print('umer: wtf, i thought this will never be run (sgm)')
                     h_ctr = th.cat([h_ctr, hs_ctr.pop()], dim=1)
                     h_ctr = module_ctr(h_ctr, emb, context)
                     if module_base != base_model.output_blocks[-1]:
