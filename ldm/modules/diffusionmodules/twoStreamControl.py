@@ -1181,17 +1181,15 @@ class ResBlock(TimestepBlock):
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
         if self.use_scale_shift_norm:
-            print('umer: wtfff?')
+            print('[ldm] umer: wtfff?')
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = th.chunk(emb_out, 2, dim=1)
             h = out_norm(h) * (1 + scale) + shift
             h = out_rest(h)
         else:
             h = h + emb_out
-
             udl.log_if("temb", emb_out, udl.SUBBLOCKM1)
             udl.log_if("add temb", h, udl.SUBBLOCKM1)
-
             #h = self.out_layers(h)
             norm,silu,drop,conv = self.out_layers
             normed_h = norm(h)
