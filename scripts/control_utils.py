@@ -186,6 +186,7 @@ def get_sdxl_sample(
 
     if float(control_scale) != 1.0:
         model.model.scale_list *= control_scale
+        model.model.control_scale = control_scale
         print(f'[CONTROL CORRECTION OF {type(model).__name__} SCALED WITH {control_scale}]')
 
     control = torch.stack([tt.ToTensor()(ds['hint'][..., None].repeat(3, 2))] * num_samples).float().to('cuda')
@@ -196,7 +197,7 @@ def get_sdxl_sample(
     seed_everything(seed)
 
     batch = get_batch(ds_instance=ds, num_samples=num_samples)
-    batch['caption'] = [prompt or ds['caption']] * num_samples
+    batch['caption'] = [prompt if prompt is not None else ds['caption']] * num_samples
 
     for k in batch:
         if isinstance(batch[k], torch.Tensor):
@@ -232,6 +233,7 @@ def get_sdxl_sample(
 
     #  reset scales
     model.model.scale_list = model.model.scale_list * 0. + 1.
+    model.model.control_scale = 1.0
 
     if return_latents:
         return x_samples, control, latents
