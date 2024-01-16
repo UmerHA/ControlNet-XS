@@ -254,21 +254,28 @@ class ResBlock(TimestepBlock):
         )
 
     def _forward(self, x, emb):
+        udl.log_if("res: input", x, udl.SUBBLOCKM1)
         if self.updown:
             #in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             #h = in_rest(x)
             norm,silu,conv = self.in_layers
             normed_x = norm(x)
+            udl.log_if("res: norm1", normed_x, udl.SUBBLOCKM1)
             h = silu(normed_x)
+            udl.log_if("res: nonlin", h, udl.SUBBLOCKM1)
 
             h = self.h_upd(h)
             x = self.x_upd(x)
+            udl.log_if('res: updown', h, udl.SUBBLOCKM1)
             #h = in_conv(h)
             h = conv(h)
         else:
             norm,silu,conv = self.in_layers
             normed_x = norm(x)
+            udl.log_if("res: norm1", normed_x, udl.SUBBLOCKM1)
             h = silu(normed_x)
+            udl.log_if("res: nonlin", h, udl.SUBBLOCKM1)
+            udl.log_if('res: updown', h, udl.SUBBLOCKM1) # no up/downsampling
             h = conv(h)
             #h = self.in_layers(x)
         udl.log_if("conv1", h, udl.SUBBLOCKM1)
