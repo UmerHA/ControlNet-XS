@@ -278,7 +278,7 @@ class ResBlock(TimestepBlock):
             udl.log_if('res: updown', h, udl.SUBBLOCKM1) # no up/downsampling
             h = conv(h)
             #h = self.in_layers(x)
-        udl.log_if("conv1", h, udl.SUBBLOCKM1)
+        udl.log_if("res: conv1", h, udl.SUBBLOCKM1)
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
