@@ -154,22 +154,26 @@ class ResnetBlock(nn.Module):
 
     def forward(self, x, temb):
         h = x
+        udl.log_if("res: input", h, udl.SUBBLOCKM1)
         h = self.norm1(h)
+        udl.log_if("res: norm1", h, udl.SUBBLOCKM1)
         h = nonlinearity(h)
+        udl.log_if("res: nonlin", h, udl.SUBBLOCKM1)
+        udl.log_if('res: updown', h, udl.SUBBLOCKM1) # no up/downsampling
         h = self.conv1(h)
-        udl.log_if("conv1", h, udl.SUBBLOCKM1)
+        udl.log_if("res: conv1", h, udl.SUBBLOCKM1)
 
         if temb is not None:
             bla_temb_out = self.temb_proj(nonlinearity(temb))[:,:,None,None]
             h = h + bla_temb_out
-            udl.log_if("temb", bla_temb_out, udl.SUBBLOCKM1)
-            udl.log_if("add temb", h, udl.SUBBLOCKM1)
+            udl.log_if("res: temb", bla_temb_out, udl.SUBBLOCKM1)
+            udl.log_if("res: add temb", h, udl.SUBBLOCKM1)
 
         h = self.norm2(h)
         h = nonlinearity(h)
         h = self.dropout(h)
         h = self.conv2(h)
-        udl.log_if("conv2", h, udl.SUBBLOCKM1)
+        udl.log_if("res: conv2", h, udl.SUBBLOCKM1)
 
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
@@ -177,7 +181,7 @@ class ResnetBlock(nn.Module):
             else:
                 x = self.nin_shortcut(x)
 
-        udl.log_if("out", x+h, udl.SUBBLOCKM1)
+        udl.log_if("res: out", x+h, udl.SUBBLOCKM1)
 
         return x+h
 
