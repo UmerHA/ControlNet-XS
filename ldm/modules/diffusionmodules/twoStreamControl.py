@@ -327,7 +327,7 @@ class TwoStreamControlNet(nn.Module):
                 hs_ctr.append(h_ctr)
 
                 h_ctr = self.infuse(h_ctr, h_base, next(it_enc_convs_in), self.infusion2control, emb)
-                udl.log_if('concat b2c', h_base, udl.SUBBLOCK)
+                udl.log_if('concat b2c', h_ctr, udl.SUBBLOCK)
 
             # mid blocks (bottleneck)
             h_base = base_model.middle_block(h_base, emb, context)
