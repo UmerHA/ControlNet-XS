@@ -13,10 +13,11 @@ import torch
 class UmerDebugLogger:
     _FILE = "udl.csv"
 
+    INPUT_SAVE = 'input_save'
     BLOCK = 'block'
     SUBBLOCK = 'subblock'
     SUBBLOCKM1 = 'subblock-minus-1'
-    allowed_conditions = [BLOCK, SUBBLOCK, SUBBLOCKM1]
+    allowed_conditions = [INPUT_SAVE, BLOCK, SUBBLOCK, SUBBLOCKM1]
 
     input_files = None
 

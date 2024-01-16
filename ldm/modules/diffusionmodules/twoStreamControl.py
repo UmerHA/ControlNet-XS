@@ -280,7 +280,7 @@ class TwoStreamControlNet(nn.Module):
         udl.log_if('encoder_hidden_states', context, udl.SUBBLOCK)
         udl.log_if('controlnet_cond', hint , udl.SUBBLOCK)
 
-        udl.stop_if(udl.SUBBLOCK, 'Stopping early bc only wanted input saved')
+        udl.stop_if(udl.INPUT_SAVE, 'Stopping early bc only wanted input saved')
 
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         #print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
