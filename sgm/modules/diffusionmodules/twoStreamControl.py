@@ -1579,6 +1579,7 @@ class ResBlock(TimestepBlock):
         return self._forward(x, emb)
 
     def _forward(self, x, emb):
+        udl.log_if('res: input', x  , udl.SUBBLOCKM1)
         # if self.updown:
         #     in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
         #     h = in_rest(x)
