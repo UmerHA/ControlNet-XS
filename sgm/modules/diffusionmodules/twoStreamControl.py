@@ -391,14 +391,14 @@ class TwoStreamControlNet(nn.Module):
 
 
         if y is not None:
-            assert y.shape[0] == x.shape[0]
             y = udl.do_input_action_for_do_input_action(y)
+            assert y.shape[0] == x.shape[0]
             emb = emb + base_model.label_emb(y)
         
         if precomputed_hint:
             guided_hint = hint
         else:
-            guided_hint = self.input_hint_block(hint)#, emb, context)
+            guided_hint = self.input_hint_block(hint, emb, context)
 
         h_ctr = h_base = x
         udl.log_if('h_ctrl', h_ctr, udl.SUBBLOCK)
@@ -1579,15 +1579,27 @@ class ResBlock(TimestepBlock):
         return self._forward(x, emb)
 
     def _forward(self, x, emb):
+        # if self.updown:
+        #     in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
+        #     h = in_rest(x)
+        #     h = self.h_upd(h)
+        #     x = self.x_upd(x)
+        #     h = in_conv(h)
+        # else:
+        #     h = self.in_layers(x)
+        # # rewrite
+        norm, nonlin, in_conv = self.in_layers 
+        h = norm(x)
+        udl.log_if('res: norm1', h, udl.SUBBLOCKM1)
+        h = nonlin(x)
+        udl.log_if('res: nonlin', h, udl.SUBBLOCKM1)
         if self.updown:
-            in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
-            h = in_rest(x)
             h = self.h_upd(h)
             x = self.x_upd(x)
-            h = in_conv(h)
-        else:
-            h = self.in_layers(x)
-        udl.log_if('conv1', h, 'SUBBLOCK-MINUS-1')
+        udl.log_if('res: updown', h, udl.SUBBLOCKM1)
+        h = in_conv(h)
+        # # rewrite end
+        udl.log_if('res: conv1', h, udl.SUBBLOCKM1)
 
         if self.skip_t_emb:
             emb_out = th.zeros_like(h)
@@ -1603,12 +1615,13 @@ class ResBlock(TimestepBlock):
         else:
             if self.exchange_temb_dims:
                 emb_out = rearrange(emb_out, "b t c ... -> b c t ...")
+            udl.log_if('res: temb', emb_out, udl.SUBBLOCKM1)
             h = h + emb_out
-            udl.log_if('add time_emb_proj', h, 'SUBBLOCK-MINUS-1')
+            udl.log_if('res: add temb', h, udl.SUBBLOCKM1)
             h = self.out_layers(h)
-            udl.log_if('conv2', h, 'SUBBLOCK-MINUS-1')
+            udl.log_if('res: conv2', h, udl.SUBBLOCKM1)
         result = self.skip_connection(x) + h
-        udl.log_if('add conv_shortcut', result, 'SUBBLOCK-MINUS-1')
+        udl.log_if('res: out', result, udl.SUBBLOCKM1)
 
         return result
 
