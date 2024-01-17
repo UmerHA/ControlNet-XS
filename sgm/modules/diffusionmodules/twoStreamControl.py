@@ -363,6 +363,15 @@ class TwoStreamControlNet(nn.Module):
 
         print('control scale: ', self.scale_list)
 
+        x, timesteps, context, hint = udl.do_input_action(x=x, t=timesteps, xcross=context, hint=hint)
+
+        udl.log_if('sample', x, udl.SUBBLOCK)
+        udl.log_if('timestep', timesteps, udl.SUBBLOCK)
+        udl.log_if('encoder_hidden_states', context, udl.SUBBLOCK)
+        udl.log_if('controlnet_cond', hint , udl.SUBBLOCK)
+
+        udl.stop_if(udl.INPUT_SAVE, 'Stopping early bc only wanted input saved')
+
         if compute_hint:
             hints = []
             for inp in hint:
@@ -371,38 +380,20 @@ class TwoStreamControlNet(nn.Module):
             hint_processed = torch.stack(hints).to(x.device)
             hint = hint_processed.to(memory_format=torch.contiguous_format).float()
 
-        # umer: logs outdated - see ldm for accurate log statements
-        udl.log_if('sample', x, udl.SUBBLOCK)
-        udl.log_if('timestep', torch.tensor(timesteps, dtype=torch.float32), udl.SUBBLOCK)
-        udl.log_if('encoder_hidden_states', context, udl.SUBBLOCK)
-
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
-        #print(f'Timestep embedding params: timesteps = {timesteps} | model channels = {self.model_channels}')
 
-        udl.log_if('time_emb',t_emb,'TIME')
         if self.learn_embedding:
             print("Of course I've not learned a time embedding. I'm smart! Let me collaborate with the base model by {self.control_scale:.2f}**3.")
-            #udl.log_if('time_proj_ctrl',self.control_model.time_embed(t_emb),'TIME')
-            #udl.log_if('time_proj_ctrl_scaled',self.control_model.time_embed(t_emb) * self.control_scale ** 0.3,'TIME')
-            #udl.log_if('time_proj_base',base_model.time_embed(t_emb),'TIME')
-            #udl.log_if('time_proj_base_scaled',base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3),'TIME')
             emb = self.control_model.time_embed(t_emb) * self.control_scale ** 0.3 + base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3)
         else:
             print("Nah man, I've not learned any time embedding. Let the base model do it.")
             emb = base_model.time_embed(t_emb)
-        #udl.log_if('time_proj',emb,'TIME')
 
 
         if y is not None:
             assert y.shape[0] == x.shape[0]
-            #udl.log_if('text_embeds',y[:,:1280],'TIME')
-            #udl.log_if('add_input',torch.tensor([-1.,-1., -1.,-1.,-1, -1., -1., -1., -1., -1., -1., -1.]),'TIME')
-            #udl.log_if('add_emb',y[:,1280:],'TIME')
-            #udl.log_if('add_proj',base_model.label_emb(y),'TIME')
+            y = udl.do_input_action_for_do_input_action(y)
             emb = emb + base_model.label_emb(y)
-            #udl.log_if('final_temb',emb,'TIME')
-
-        #udl.stop_if('TIME', 'Time to analyze time!')
         
         if precomputed_hint:
             guided_hint = hint
@@ -430,7 +421,7 @@ class TwoStreamControlNet(nn.Module):
 
                 if "PseudoModule" not in str(type(module_ctr)):
                     h_ctr = module_ctr(h_ctr, emb, context)
-                    udl.log_if('ctrl', h_ctrl, udl.SUBBLOCK)
+                    udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
 
                 if guided_hint is not None:
                     h_ctr = h_ctr + guided_hint
@@ -448,11 +439,8 @@ class TwoStreamControlNet(nn.Module):
                     udl.log_if('concat b2c', h_base, udl.SUBBLOCK)
 
             # mid blocks (bottleneck)
-            #udl.print_if('------ mid ------', conditions=RUN_ONCE)
-            #udl.print_if('>> Applying base block\t', end='', conditions=RUN_ONCE)
             h_base = base_model.middle_block(h_base, emb, context)
             udl.log_if('base', h_base, udl.SUBBLOCK)
-            #udl.print_if('>> Applying ctrl block\t', end='', conditions=RUN_ONCE)
             h_ctr = self.control_model.middle_block(h_ctr, emb, context)
             udl.log_if('ctrl', h_ctr, udl.SUBBLOCK)
             
@@ -463,7 +451,6 @@ class TwoStreamControlNet(nn.Module):
                 h_ctr = self.infuse(h_ctr, h_base, self.middle_block_in, self.infusion2control, emb)
 
             # output blocks (decoder)
-            #udl.print_if('------ dec ------', conditions=RUN_ONCE)
             for module_base, module_ctr in zip(
                     base_model.output_blocks,
                     self.control_model.output_blocks if hasattr(
