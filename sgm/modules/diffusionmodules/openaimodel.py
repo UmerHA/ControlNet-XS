@@ -338,7 +338,7 @@ class ResBlock(TimestepBlock):
         norm, nonlin, in_conv = self.in_layers 
         h = norm(x)
         udl.log_if('res: norm1', h, udl.SUBBLOCKM1)
-        h = nonlin(x)
+        h = nonlin(h)
         udl.log_if('res: nonlin', h, udl.SUBBLOCKM1)
         if self.updown:
             h = self.h_upd(h)
