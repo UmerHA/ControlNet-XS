@@ -477,7 +477,7 @@ class TwoStreamControlNet(nn.Module):
         h_base = h_base.type(x.dtype)
 
         result = base_model.out(h_base)
-        udl.log_if('conv_out', h_base, udl.SUBBLOCK)
+        udl.log_if('conv_out', result, udl.SUBBLOCK)
 
         udl.stop_if(udl.SUBBLOCK, 'It is done, my dude. Let us look at these tensors.')
         
