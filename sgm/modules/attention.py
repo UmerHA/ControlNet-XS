@@ -476,8 +476,8 @@ class BasicTransformerBlock(nn.Module):
             )
         )
         x = attn1_output + x
-        udl.log_if("attn1", attn1_output, udl.SUBBLOCKM1)
-        udl.log_if("add attn1", x, udl.SUBBLOCKM1)
+        udl.log_if('attn: attn1', attn1_output, udl.SUBBLOCKM1)
+        udl.log_if('attn: add attn1', x, udl.SUBBLOCKM1)
 
         norm2_x = self.norm2(x)
         attn2_output = (
@@ -486,13 +486,13 @@ class BasicTransformerBlock(nn.Module):
             )
         )
         x = attn2_output + x
-        udl.log_if("attn2", attn2_output, udl.SUBBLOCKM1)
-        udl.log_if("add attn2", x, udl.SUBBLOCKM1)
+        udl.log_if('attn: attn2', attn2_output, udl.SUBBLOCKM1)
+        udl.log_if('attn: add attn2', x, udl.SUBBLOCKM1)
 
         ff_output = self.ff(self.norm3(x))
         x = ff_output + x
-        udl.log_if("ff", ff_output, udl.SUBBLOCKM1)
-        udl.log_if("add ff", x, udl.SUBBLOCKM1)
+        udl.log_if('attn: ff', ff_output, udl.SUBBLOCKM1)
+        udl.log_if('attn: add ff', x, udl.SUBBLOCKM1)
 
         return x
 
@@ -630,13 +630,13 @@ class SpatialTransformer(nn.Module):
         x_in = x
         # # # 1 - In
         x = self.norm(x)
-        udl.log_if('norm', x, udl.SUBBLOCKM1)
+        udl.log_if('attn: norm', x, udl.SUBBLOCKM1)
         if not self.use_linear:
             x = self.proj_in(x)
         x = rearrange(x, "b c h w -> b (h w) c").contiguous()
         if self.use_linear:
             x = self.proj_in(x)
-        udl.log_if('proj_in', x, udl.SUBBLOCKM1)
+        udl.log_if('attn: proj_in', x, udl.SUBBLOCKM1)
 
         # # # 2 - Tranformer blocks
         for i, block in enumerate(self.transformer_blocks):
@@ -652,6 +652,6 @@ class SpatialTransformer(nn.Module):
             x = self.proj_out(x)
         
         result = x + x_in
-        udl.log_if('proj_out', result,  udl.SUBBLOCKM1)
+        udl.log_if('attn: proj_out', result,  udl.SUBBLOCKM1)
 
         return result

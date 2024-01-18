@@ -1162,15 +1162,15 @@ class ResBlock(TimestepBlock):
         )
 
     def _forward(self, x, emb):
-        udl.log_if("res: input", x, udl.SUBBLOCKM1)
+        udl.log_if('res: input', x, udl.SUBBLOCKM1)
         if self.updown:
             #in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             #h = in_rest(x)
             norm,silu,conv = self.in_layers
             normed_x = norm(x)
-            udl.log_if("res: norm1", normed_x, udl.SUBBLOCKM1)
+            udl.log_if('res: norm1', normed_x, udl.SUBBLOCKM1)
             h = silu(normed_x)
-            udl.log_if("res: nonlin", h, udl.SUBBLOCKM1)
+            udl.log_if('res: nonlin', h, udl.SUBBLOCKM1)
             h = self.h_upd(h)
             x = self.x_upd(x)
             udl.log_if('res: updown', h, udl.SUBBLOCKM1)
@@ -1179,13 +1179,13 @@ class ResBlock(TimestepBlock):
         else:
             norm,silu,conv = self.in_layers
             normed_x = norm(x)
-            udl.log_if("res: norm1", normed_x, udl.SUBBLOCKM1)
+            udl.log_if('res: norm1', normed_x, udl.SUBBLOCKM1)
             h = silu(normed_x)
-            udl.log_if("res: nonlin", h, udl.SUBBLOCKM1)
+            udl.log_if('res: nonlin', h, udl.SUBBLOCKM1)
             udl.log_if('res: updown', h, udl.SUBBLOCKM1) # no up/downsampling
             h = conv(h)
             #h = self.in_layers(x)
-        udl.log_if("res: conv1", h, udl.SUBBLOCKM1)
+        udl.log_if('res: conv1', h, udl.SUBBLOCKM1)
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
@@ -1197,17 +1197,17 @@ class ResBlock(TimestepBlock):
             h = out_rest(h)
         else:
             h = h + emb_out
-            udl.log_if("res: temb", emb_out, udl.SUBBLOCKM1)
-            udl.log_if("res: add temb", h, udl.SUBBLOCKM1)
+            udl.log_if('res: temb', emb_out, udl.SUBBLOCKM1)
+            udl.log_if('res: add temb', h, udl.SUBBLOCKM1)
             #h = self.out_layers(h)
             norm,silu,drop,conv = self.out_layers
             normed_h = norm(h)
             h = silu(normed_h)
             h = drop(h)
             h = conv(h)
-            udl.log_if("res: conv2", h, udl.SUBBLOCKM1)
+            udl.log_if('res: conv2', h, udl.SUBBLOCKM1)
         result = self.skip_connection(x) + h
-        udl.log_if("res: out", result, udl.SUBBLOCKM1)
+        udl.log_if('res: out', result, udl.SUBBLOCKM1)
 
         return result
 

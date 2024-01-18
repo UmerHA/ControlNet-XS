@@ -383,7 +383,7 @@ class TwoStreamControlNet(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
 
         if self.learn_embedding:
-            print("Of course I've not learned a time embedding. I'm smart! Let me collaborate with the base model by {self.control_scale:.2f}**3.")
+            print(f"Of course I've not learned a time embedding. I'm smart! Let me collaborate with the base model by {self.control_scale:.2f}**3.")
             emb = self.control_model.time_embed(t_emb) * self.control_scale ** 0.3 + base_model.time_embed(t_emb) * (1 - self.control_scale ** 0.3)
         else:
             print("Nah man, I've not learned any time embedding. Let the base model do it.")
@@ -436,7 +436,7 @@ class TwoStreamControlNet(nn.Module):
 
                 if "PseudoModule" not in str(type(module_ctr)):
                     h_ctr = self.infuse(h_ctr, h_base, next(it_enc_convs_in), self.infusion2control, emb)
-                    udl.log_if('concat b2c', h_base, udl.SUBBLOCK)
+                    udl.log_if('concat b2c', h_ctr, udl.SUBBLOCK)
 
             # mid blocks (bottleneck)
             h_base = base_model.middle_block(h_base, emb, context)
@@ -1720,14 +1720,14 @@ class SpatialTransformer(nn.Module):
         x_in = x
         # # # 1 - In
         x = self.norm(x)
-        udl.log_if('norm', x, udl.SUBBLOCKM1)
+        udl.log_if('attn: norm', x, udl.SUBBLOCKM1)
 
         if not self.use_linear:
             x = self.proj_in(x)
         x = rearrange(x, "b c h w -> b (h w) c").contiguous()
         if self.use_linear:
             x = self.proj_in(x)
-        udl.log_if('proj_in', x, udl.SUBBLOCKM1)
+        udl.log_if('attn: proj_in', x, udl.SUBBLOCKM1)
 
         # # # 2 - Tranformer blocks
         for i, block in enumerate(self.transformer_blocks):
@@ -1743,7 +1743,7 @@ class SpatialTransformer(nn.Module):
             x = self.proj_out(x)
         
         result = x + x_in
-        udl.log_if('proj_out', result, udl.SUBBLOCKM1)
+        udl.log_if('attn: proj_out', result, udl.SUBBLOCKM1)
 
         return result
     
